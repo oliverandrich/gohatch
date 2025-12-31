@@ -10,9 +10,21 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 - Support for specific tags (`@v1.0.0`) or commits (`@abc1234`)
 - Optional string replacement in additional file types
 
+## Requirements
+
+- Go 1.25 or later (for building from source or `go install`)
+- Git (for cloning remote templates)
+
 ## Installation
 
 ### Homebrew (macOS/Linux)
+
+```bash
+brew tap oliverandrich/tap
+brew install gohatch
+```
+
+Or as a single command:
 
 ```bash
 brew install oliverandrich/tap/gohatch
@@ -26,7 +38,21 @@ go install github.com/oliverandrich/gohatch@latest
 
 ### Binary Downloads
 
-Pre-built binaries are available on the [Releases](https://github.com/oliverandrich/gohatch/releases) page.
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/oliverandrich/gohatch/releases) page.
+
+### Build from Source
+
+```bash
+git clone https://github.com/oliverandrich/gohatch.git
+cd gohatch
+go build -o gohatch ./cmd/gohatch
+```
+
+To install into your `$GOPATH/bin`:
+
+```bash
+go install ./cmd/gohatch
+```
 
 ## Usage
 
