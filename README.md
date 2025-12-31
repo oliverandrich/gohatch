@@ -73,6 +73,7 @@ gohatch [options] <source> <module> [directory]
 | Flag | Description |
 |------|-------------|
 | `-e, --extension` | Additional file extensions for module replacement |
+| `--dry-run` | Show what would be done without making any changes |
 
 ### Source Formats
 
@@ -115,6 +116,12 @@ Use a local template:
 
 ```bash
 gohatch ./my-template github.com/me/myapp
+```
+
+Preview what would be done (dry-run):
+
+```bash
+gohatch --dry-run user/go-template github.com/me/myapp
 ```
 
 ## License
