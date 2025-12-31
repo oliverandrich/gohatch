@@ -79,6 +79,7 @@ gohatch [options] <source> <module> [directory]
 | `-f, --force` | Proceed even if template has no go.mod |
 | `--no-git-init` | Skip git repository initialization |
 | `--dry-run` | Show what would be done without making any changes |
+| `--verbose` | Show detailed progress output |
 
 ### Source Formats
 

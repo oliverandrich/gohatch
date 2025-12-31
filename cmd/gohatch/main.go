@@ -31,6 +31,7 @@ var (
 	dryRun     bool
 	force      bool
 	noGitInit  bool
+	verbose    bool
 )
 
 func main() {
@@ -94,6 +95,11 @@ Examples:
 				Usage:       "skip git repository initialization",
 				Destination: &noGitInit,
 			},
+			&cli.BoolFlag{
+				Name:        "verbose",
+				Usage:       "show detailed progress output",
+				Destination: &verbose,
+			},
 		},
 		Arguments: []cli.Argument{
 			&cli.StringArg{
@@ -155,6 +161,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Remove template's .git directory
+	verboseLog("Removing template .git directory")
 	if err := os.RemoveAll(filepath.Join(directory, ".git")); err != nil {
 		return fmt.Errorf("removing template .git: %w", err)
 	}
@@ -175,11 +182,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("reading module path: %w", err)
 		}
+		verboseLog("Found go.mod with module: %s", oldModule)
 
 		if oldModule != module {
 			fmt.Printf("Rewriting module %s → %s\n", oldModule, module)
-			if err := rewrite.Module(directory, module, extensions); err != nil {
+			modifiedFiles, err := rewrite.Module(directory, module, extensions)
+			if err != nil {
 				return fmt.Errorf("rewriting module: %w", err)
+			}
+			for _, f := range modifiedFiles {
+				verboseLog("Rewritten: %s", f)
 			}
 		}
 	}
@@ -188,8 +200,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	vars := parseVariables(variables, path.Base(directory))
 	if len(vars) > 0 {
 		fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
-		if err := rewrite.Variables(directory, vars, extensions); err != nil {
+		modifiedFiles, err := rewrite.Variables(directory, vars, extensions)
+		if err != nil {
 			return fmt.Errorf("replacing variables: %w", err)
+		}
+		for _, f := range modifiedFiles {
+			verboseLog("Replaced variables in: %s", f)
 		}
 	}
 
@@ -225,6 +241,13 @@ func formatVariables(vars map[string]string) string {
 		parts = append(parts, k+"="+v)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// verboseLog prints a message only if verbose mode is enabled.
+func verboseLog(format string, args ...any) {
+	if verbose {
+		fmt.Printf("  "+format+"\n", args...)
+	}
 }
 
 func runDryRun(src source.Source) error {

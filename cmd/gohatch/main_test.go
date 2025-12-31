@@ -270,3 +270,29 @@ func TestRunDryRun_DefaultGitInit(t *testing.T) {
 
 	assert.Contains(t, output, "Would initialize git repository with initial commit")
 }
+
+func TestVerboseLog_Enabled(t *testing.T) {
+	oldVerbose := verbose
+	defer func() { verbose = oldVerbose }()
+
+	verbose = true
+
+	output := captureOutput(func() {
+		verboseLog("Test message: %s", "value")
+	})
+
+	assert.Contains(t, output, "  Test message: value")
+}
+
+func TestVerboseLog_Disabled(t *testing.T) {
+	oldVerbose := verbose
+	defer func() { verbose = oldVerbose }()
+
+	verbose = false
+
+	output := captureOutput(func() {
+		verboseLog("Test message: %s", "value")
+	})
+
+	assert.Empty(t, output)
+}
