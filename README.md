@@ -12,9 +12,21 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install oliverandrich/tap/gohatch
+```
+
+### Go Install
+
 ```bash
 go install github.com/oliverandrich/gohatch@latest
 ```
+
+### Binary Downloads
+
+Pre-built binaries are available on the [Releases](https://github.com/oliverandrich/gohatch/releases) page.
 
 ## Usage
 
