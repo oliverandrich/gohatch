@@ -449,3 +449,174 @@ const Name = "__ProjectName__"
 		t.Errorf("vendor file should not be modified, got: %s", data)
 	}
 }
+
+func TestRenamePaths_SimpleDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create directory with variable in name
+	varDir := filepath.Join(tmpDir, "cmd", "__ProjectName__")
+	if err := os.MkdirAll(varDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file inside
+	if err := os.WriteFile(filepath.Join(varDir, "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{"ProjectName": "myapp"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	// Should have renamed the directory
+	if len(renamed) != 1 {
+		t.Errorf("expected 1 rename, got %d: %v", len(renamed), renamed)
+	}
+
+	// New path should exist
+	newDir := filepath.Join(tmpDir, "cmd", "myapp")
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		t.Errorf("renamed directory should exist at %s", newDir)
+	}
+
+	// Old path should not exist
+	if _, err := os.Stat(varDir); !os.IsNotExist(err) {
+		t.Errorf("old directory should not exist at %s", varDir)
+	}
+
+	// File inside should still exist
+	if _, err := os.Stat(filepath.Join(newDir, "main.go")); os.IsNotExist(err) {
+		t.Errorf("file inside renamed directory should exist")
+	}
+}
+
+func TestRenamePaths_NestedDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create nested directories with variables
+	nestedDir := filepath.Join(tmpDir, "__A__", "__B__")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file inside
+	if err := os.WriteFile(filepath.Join(nestedDir, "file.go"), []byte("package pkg"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{"A": "first", "B": "second"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	// Should have renamed both directories
+	if len(renamed) != 2 {
+		t.Errorf("expected 2 renames, got %d: %v", len(renamed), renamed)
+	}
+
+	// New path should exist
+	newPath := filepath.Join(tmpDir, "first", "second", "file.go")
+	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+		t.Errorf("file should exist at %s", newPath)
+	}
+}
+
+func TestRenamePaths_FileRename(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a file with variable in name
+	if err := os.WriteFile(filepath.Join(tmpDir, "__ProjectName__.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{"ProjectName": "myapp"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	if len(renamed) != 1 {
+		t.Errorf("expected 1 rename, got %d: %v", len(renamed), renamed)
+	}
+
+	// New file should exist
+	if _, err := os.Stat(filepath.Join(tmpDir, "myapp.go")); os.IsNotExist(err) {
+		t.Errorf("renamed file should exist")
+	}
+
+	// Old file should not exist
+	if _, err := os.Stat(filepath.Join(tmpDir, "__ProjectName__.go")); !os.IsNotExist(err) {
+		t.Errorf("old file should not exist")
+	}
+}
+
+func TestRenamePaths_NoMatches(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a normal directory and file
+	if err := os.MkdirAll(filepath.Join(tmpDir, "cmd", "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "cmd", "app", "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{"ProjectName": "myapp"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	// Should have no renames
+	if len(renamed) != 0 {
+		t.Errorf("expected 0 renames, got %d: %v", len(renamed), renamed)
+	}
+}
+
+func TestRenamePaths_EmptyVars(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	renamed, err := RenamePaths(tmpDir, map[string]string{})
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	if renamed != nil {
+		t.Errorf("expected nil, got %v", renamed)
+	}
+}
+
+func TestRenamePaths_DirectoryAndFileWithSameVar(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create directory with variable
+	varDir := filepath.Join(tmpDir, "__ProjectName__")
+	if err := os.MkdirAll(varDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create file with variable inside
+	if err := os.WriteFile(filepath.Join(varDir, "__ProjectName__.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{"ProjectName": "myapp"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	if err != nil {
+		t.Fatalf("RenamePaths() error = %v", err)
+	}
+
+	// Should have renamed both
+	if len(renamed) != 2 {
+		t.Errorf("expected 2 renames, got %d: %v", len(renamed), renamed)
+	}
+
+	// Final file should exist
+	finalPath := filepath.Join(tmpDir, "myapp", "myapp.go")
+	if _, err := os.Stat(finalPath); os.IsNotExist(err) {
+		t.Errorf("final file should exist at %s", finalPath)
+	}
+}

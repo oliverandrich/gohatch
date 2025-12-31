@@ -191,6 +191,18 @@ const Author = "Oliver"
 
 Variables are replaced in `.go` files and any additional extensions specified with `-e`.
 
+### Path Renaming
+
+Variables can also be used in directory and file names:
+
+```
+Template structure:              After scaffolding:
+cmd/__ProjectName__/main.go  →   cmd/myapp/main.go
+__ProjectName___test.go      →   myapp_test.go
+```
+
+This allows you to create templates where the directory structure adapts to the project name.
+
 ## License
 
 This project is licensed under the [European Union Public License 1.2](https://eupl.eu/) (EUPL-1.2).
