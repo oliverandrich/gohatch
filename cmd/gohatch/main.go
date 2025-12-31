@@ -37,12 +37,14 @@ Source formats:
   github.com/user/repo          Full URL
   codeberg.org/user/repo        Other Git hosts
   user/repo@v1.0.0              Specific tag
+  user/repo@main                Specific branch
   user/repo@abc1234             Specific commit
   ./local-template              Local directory
 
 Examples:
   gohatch user/template github.com/me/myapp
   gohatch github.com/user/template@v1.0.0 github.com/me/myapp
+  gohatch user/template@main github.com/me/myapp
   gohatch ./local-template github.com/me/myapp customdir
   gohatch -e toml -e sh user/template github.com/me/myapp
   gohatch --dry-run user/template github.com/me/myapp`,
