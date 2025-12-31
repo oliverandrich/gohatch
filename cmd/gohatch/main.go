@@ -24,6 +24,7 @@ var (
 	extensions []string
 	variables  []string
 	dryRun     bool
+	force      bool
 )
 
 func main() {
@@ -56,7 +57,8 @@ Examples:
   gohatch ./local-template github.com/me/myapp customdir
   gohatch -e toml -e sh user/template github.com/me/myapp
   gohatch --var Author="Your Name" user/template github.com/me/myapp
-  gohatch --dry-run user/template github.com/me/myapp`,
+  gohatch --dry-run user/template github.com/me/myapp
+  gohatch --force user/non-go-template github.com/me/myapp`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:        "extension",
@@ -74,6 +76,12 @@ Examples:
 				Name:        "dry-run",
 				Usage:       "show what would be done without making any changes",
 				Destination: &dryRun,
+			},
+			&cli.BoolFlag{
+				Name:        "force",
+				Aliases:     []string{"f"},
+				Usage:       "proceed even if template has no go.mod",
+				Destination: &force,
 			},
 		},
 		Arguments: []cli.Argument{
@@ -133,6 +141,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	fmt.Printf("Fetching template from %s...\n", srcInput)
 	if err := src.Fetch(ctx, directory); err != nil {
 		return fmt.Errorf("fetching template: %w", err)
+	}
+
+	// Validate template has go.mod
+	if !rewrite.HasGoMod(directory) {
+		if !force {
+			// Clean up the fetched directory before returning error
+			_ = os.RemoveAll(directory)
+			return fmt.Errorf("template has no go.mod (use --force to proceed anyway)")
+		}
+		fmt.Println("Warning: template has no go.mod, skipping module rewrite")
 	}
 
 	// Rewrite module path if go.mod exists
@@ -213,6 +231,11 @@ func runDryRun(src source.Source) error {
 	// Show variables
 	vars := parseVariables(variables, path.Base(directory))
 	fmt.Printf("Variables: %s\n", formatVariables(vars))
+
+	// Show force flag
+	if force {
+		fmt.Println("Force:     --force (skip go.mod validation)")
+	}
 
 	fmt.Println()
 	fmt.Println("Would fetch template and rewrite module path in all .go files.")

@@ -75,6 +75,7 @@ gohatch [options] <source> <module> [directory]
 |------|-------------|
 | `-e, --extension` | Additional file extensions for module replacement |
 | `-v, --var` | Set template variable (e.g., `--var Author="Name"`) |
+| `-f, --force` | Proceed even if template has no go.mod |
 | `--dry-run` | Show what would be done without making any changes |
 
 ### Source Formats
@@ -133,6 +134,12 @@ Preview what would be done (dry-run):
 
 ```bash
 gohatch --dry-run user/go-template github.com/me/myapp
+```
+
+Use a non-Go template (skip go.mod validation):
+
+```bash
+gohatch --force user/non-go-template github.com/me/myapp
 ```
 
 ## Template Variables

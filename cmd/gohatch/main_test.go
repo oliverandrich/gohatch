@@ -199,3 +199,27 @@ func TestFormatVariables_Multiple(t *testing.T) {
 	assert.Contains(t, result, "B=2")
 	assert.Contains(t, result, ", ")
 }
+
+func TestRunDryRun_WithForce(t *testing.T) {
+	oldDir, oldMod, oldExt, oldForce := directory, module, extensions, force
+	defer func() {
+		directory, module, extensions, force = oldDir, oldMod, oldExt, oldForce
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	force = true
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Dry-run mode")
+	assert.Contains(t, output, "--force")
+}
