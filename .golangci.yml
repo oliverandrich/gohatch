@@ -2,6 +2,7 @@ version: "2"
 linters:
   enable:
     - errorlint
+    - gocyclo
     - exhaustive
     - gosec
     - misspell
@@ -11,6 +12,8 @@ linters:
     - revive
     - unparam
   settings:
+    gocyclo:
+      min-complexity: 15
     errcheck:
       check-type-assertions: true
       check-blank: false

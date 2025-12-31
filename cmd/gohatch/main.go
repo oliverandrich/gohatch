@@ -149,81 +149,36 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return runDryRun(src)
 	}
 
-	// Validate target directory
+	return executeScaffold(ctx, src)
+}
+
+func executeScaffold(ctx context.Context, src source.Source) error {
 	if err := validateDirectory(directory); err != nil {
 		return err
 	}
 
-	// Fetch the template
-	fmt.Printf("Fetching template from %s...\n", srcInput)
-	if err := src.Fetch(ctx, directory); err != nil {
-		return fmt.Errorf("fetching template: %w", err)
+	if err := fetchTemplate(ctx, src); err != nil {
+		return err
 	}
 
-	// Remove template's .git directory
-	verboseLog("Removing template .git directory")
-	if err := os.RemoveAll(filepath.Join(directory, ".git")); err != nil {
-		return fmt.Errorf("removing template .git: %w", err)
+	if err := validateGoMod(); err != nil {
+		return err
 	}
 
-	// Validate template has go.mod
-	if !rewrite.HasGoMod(directory) {
-		if !force {
-			// Clean up the fetched directory before returning error
-			_ = os.RemoveAll(directory)
-			return fmt.Errorf("template has no go.mod (use --force to proceed anyway)")
-		}
-		fmt.Println("Warning: template has no go.mod, skipping module rewrite")
-	}
-
-	// Rename paths containing template variables
 	vars := parseVariables(variables, path.Base(directory))
-	if len(vars) > 0 {
-		renamedPaths, err := rewrite.RenamePaths(directory, vars)
-		if err != nil {
-			return fmt.Errorf("renaming paths: %w", err)
-		}
-		if len(renamedPaths) > 0 {
-			fmt.Println("Renaming paths...")
-			for _, r := range renamedPaths {
-				verboseLog("Renamed: %s", r)
-			}
-		}
+
+	if err := renamePaths(vars); err != nil {
+		return err
 	}
 
-	// Rewrite module path if go.mod exists
-	if rewrite.HasGoMod(directory) {
-		oldModule, err := rewrite.ReadModulePath(directory)
-		if err != nil {
-			return fmt.Errorf("reading module path: %w", err)
-		}
-		verboseLog("Found go.mod with module: %s", oldModule)
-
-		if oldModule != module {
-			fmt.Printf("Rewriting module %s → %s\n", oldModule, module)
-			modifiedFiles, err := rewrite.Module(directory, module, extensions)
-			if err != nil {
-				return fmt.Errorf("rewriting module: %w", err)
-			}
-			for _, f := range modifiedFiles {
-				verboseLog("Rewritten: %s", f)
-			}
-		}
+	if err := rewriteModule(); err != nil {
+		return err
 	}
 
-	// Replace template variables in file contents
-	if len(vars) > 0 {
-		fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
-		modifiedFiles, err := rewrite.Variables(directory, vars, extensions)
-		if err != nil {
-			return fmt.Errorf("replacing variables: %w", err)
-		}
-		for _, f := range modifiedFiles {
-			verboseLog("Replaced variables in: %s", f)
-		}
+	if err := replaceVariables(vars); err != nil {
+		return err
 	}
 
-	// Initialize git repository
 	if !noGitInit {
 		if err := initGitRepo(directory); err != nil {
 			return fmt.Errorf("initializing git repository: %w", err)
@@ -231,6 +186,100 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Printf("Created %s\n", directory)
+	return nil
+}
+
+func fetchTemplate(ctx context.Context, src source.Source) error {
+	fmt.Printf("Fetching template from %s...\n", srcInput)
+	if err := src.Fetch(ctx, directory); err != nil {
+		return fmt.Errorf("fetching template: %w", err)
+	}
+
+	verboseLog("Removing template .git directory")
+	if err := os.RemoveAll(filepath.Join(directory, ".git")); err != nil {
+		return fmt.Errorf("removing template .git: %w", err)
+	}
+
+	return nil
+}
+
+func validateGoMod() error {
+	if rewrite.HasGoMod(directory) {
+		return nil
+	}
+
+	if !force {
+		_ = os.RemoveAll(directory)
+		return fmt.Errorf("template has no go.mod (use --force to proceed anyway)")
+	}
+
+	fmt.Println("Warning: template has no go.mod, skipping module rewrite")
+	return nil
+}
+
+func renamePaths(vars map[string]string) error {
+	if len(vars) == 0 {
+		return nil
+	}
+
+	renamedPaths, err := rewrite.RenamePaths(directory, vars)
+	if err != nil {
+		return fmt.Errorf("renaming paths: %w", err)
+	}
+
+	if len(renamedPaths) > 0 {
+		fmt.Println("Renaming paths...")
+		for _, r := range renamedPaths {
+			verboseLog("Renamed: %s", r)
+		}
+	}
+
+	return nil
+}
+
+func rewriteModule() error {
+	if !rewrite.HasGoMod(directory) {
+		return nil
+	}
+
+	oldModule, err := rewrite.ReadModulePath(directory)
+	if err != nil {
+		return fmt.Errorf("reading module path: %w", err)
+	}
+	verboseLog("Found go.mod with module: %s", oldModule)
+
+	if oldModule == module {
+		return nil
+	}
+
+	fmt.Printf("Rewriting module %s → %s\n", oldModule, module)
+	modifiedFiles, err := rewrite.Module(directory, module, extensions)
+	if err != nil {
+		return fmt.Errorf("rewriting module: %w", err)
+	}
+
+	for _, f := range modifiedFiles {
+		verboseLog("Rewritten: %s", f)
+	}
+
+	return nil
+}
+
+func replaceVariables(vars map[string]string) error {
+	if len(vars) == 0 {
+		return nil
+	}
+
+	fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
+	modifiedFiles, err := rewrite.Variables(directory, vars, extensions)
+	if err != nil {
+		return fmt.Errorf("replacing variables: %w", err)
+	}
+
+	for _, f := range modifiedFiles {
+		verboseLog("Replaced variables in: %s", f)
+	}
+
 	return nil
 }
 
