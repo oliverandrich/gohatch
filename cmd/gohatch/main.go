@@ -8,8 +8,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/urfave/cli/v3"
@@ -25,6 +30,7 @@ var (
 	variables  []string
 	dryRun     bool
 	force      bool
+	noGitInit  bool
 )
 
 func main() {
@@ -82,6 +88,11 @@ Examples:
 				Aliases:     []string{"f"},
 				Usage:       "proceed even if template has no go.mod",
 				Destination: &force,
+			},
+			&cli.BoolFlag{
+				Name:        "no-git-init",
+				Usage:       "skip git repository initialization",
+				Destination: &noGitInit,
 			},
 		},
 		Arguments: []cli.Argument{
@@ -143,6 +154,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("fetching template: %w", err)
 	}
 
+	// Remove template's .git directory
+	if err := os.RemoveAll(filepath.Join(directory, ".git")); err != nil {
+		return fmt.Errorf("removing template .git: %w", err)
+	}
+
 	// Validate template has go.mod
 	if !rewrite.HasGoMod(directory) {
 		if !force {
@@ -174,6 +190,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
 		if err := rewrite.Variables(directory, vars, extensions); err != nil {
 			return fmt.Errorf("replacing variables: %w", err)
+		}
+	}
+
+	// Initialize git repository
+	if !noGitInit {
+		if err := initGitRepo(directory); err != nil {
+			return fmt.Errorf("initializing git repository: %w", err)
 		}
 	}
 
@@ -237,12 +260,20 @@ func runDryRun(src source.Source) error {
 		fmt.Println("Force:     --force (skip go.mod validation)")
 	}
 
+	// Show git init status
+	if noGitInit {
+		fmt.Println("Git:       --no-git-init (skip initialization)")
+	}
+
 	fmt.Println()
 	fmt.Println("Would fetch template and rewrite module path in all .go files.")
 	if len(extensions) > 0 {
 		fmt.Println("Would also replace module path in files with specified extensions.")
 	}
 	fmt.Println("Would replace template variables (__Key__ → Value).")
+	if !noGitInit {
+		fmt.Println("Would initialize git repository with initial commit.")
+	}
 
 	return nil
 }
@@ -270,4 +301,51 @@ func validateDirectory(dir string) error {
 	}
 
 	return nil
+}
+
+// initGitRepo initializes a git repository and creates an initial commit.
+func initGitRepo(dir string) error {
+	repo, err := git.PlainInit(dir, false)
+	if err != nil {
+		return fmt.Errorf("git init: %w", err)
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("getting worktree: %w", err)
+	}
+
+	// Add all files
+	if err = worktree.AddGlob("."); err != nil {
+		return fmt.Errorf("staging files: %w", err)
+	}
+
+	// Create initial commit
+	_, err = worktree.Commit("Initial commit.", &git.CommitOptions{
+		Author: getGitAuthor(),
+	})
+	if err != nil {
+		return fmt.Errorf("creating commit: %w", err)
+	}
+
+	fmt.Println("Initialized git repository with initial commit")
+	return nil
+}
+
+// getGitAuthor reads the git author from the user's global git config.
+// Falls back to gohatch defaults if not configured.
+func getGitAuthor() *object.Signature {
+	cfg, err := config.LoadConfig(config.GlobalScope)
+	if err == nil && cfg.User.Name != "" && cfg.User.Email != "" {
+		return &object.Signature{
+			Name:  cfg.User.Name,
+			Email: cfg.User.Email,
+			When:  time.Now(),
+		}
+	}
+	return &object.Signature{
+		Name:  "gohatch",
+		Email: "gohatch@localhost",
+		When:  time.Now(),
+	}
 }
