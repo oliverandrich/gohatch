@@ -15,6 +15,44 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
+// GitCloner abstracts git cloning operations for testing.
+type GitCloner interface {
+	PlainCloneContext(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (Repository, error)
+}
+
+// Repository abstracts git repository operations for testing.
+type Repository interface {
+	Worktree() (Worktree, error)
+}
+
+// Worktree abstracts git worktree operations for testing.
+type Worktree interface {
+	Checkout(opts *git.CheckoutOptions) error
+}
+
+// defaultCloner wraps go-git for production use.
+type defaultCloner struct{}
+
+func (defaultCloner) PlainCloneContext(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (Repository, error) {
+	repo, err := git.PlainCloneContext(ctx, path, isBare, o)
+	if err != nil {
+		return nil, err
+	}
+	return &gitRepository{repo: repo}, nil
+}
+
+type gitRepository struct {
+	repo *git.Repository
+}
+
+func (r *gitRepository) Worktree() (Worktree, error) {
+	wt, err := r.repo.Worktree()
+	if err != nil {
+		return nil, err
+	}
+	return wt, nil
+}
+
 // Source represents a template source that can be fetched.
 type Source interface {
 	Fetch(ctx context.Context, dest string) error
@@ -22,6 +60,7 @@ type Source interface {
 
 // GitSource represents a remote Git repository.
 type GitSource struct {
+	Cloner  GitCloner // nil uses default go-git cloner
 	URL     string
 	Version string
 }
@@ -98,6 +137,11 @@ func isCommitHash(version string) bool {
 
 // Fetch clones the Git repository to the destination directory.
 func (s *GitSource) Fetch(ctx context.Context, dest string) error {
+	cloner := s.Cloner
+	if cloner == nil {
+		cloner = defaultCloner{}
+	}
+
 	cloneOpts := &git.CloneOptions{
 		URL:      s.URL,
 		Progress: nil,
@@ -106,7 +150,7 @@ func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 	// No version specified: shallow clone of default branch
 	if s.Version == "" {
 		cloneOpts.Depth = 1
-		_, err := git.PlainCloneContext(ctx, dest, false, cloneOpts)
+		_, err := cloner.PlainCloneContext(ctx, dest, false, cloneOpts)
 		if err != nil {
 			return fmt.Errorf("cloning repository: %w", err)
 		}
@@ -115,7 +159,7 @@ func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 
 	// Commit hash: need full clone, then checkout
 	if isCommitHash(s.Version) {
-		repo, err := git.PlainCloneContext(ctx, dest, false, cloneOpts)
+		repo, err := cloner.PlainCloneContext(ctx, dest, false, cloneOpts)
 		if err != nil {
 			return fmt.Errorf("cloning repository: %w", err)
 		}
@@ -140,7 +184,7 @@ func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 	cloneOpts.ReferenceName = plumbing.NewTagReferenceName(s.Version)
 	cloneOpts.SingleBranch = true
 
-	_, err := git.PlainCloneContext(ctx, dest, false, cloneOpts)
+	_, err := cloner.PlainCloneContext(ctx, dest, false, cloneOpts)
 	if err != nil {
 		return fmt.Errorf("cloning repository: %w", err)
 	}

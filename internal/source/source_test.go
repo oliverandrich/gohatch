@@ -5,8 +5,13 @@ package source
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
+
+	"github.com/go-git/go-git/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestIsCommitHash(t *testing.T) {
@@ -329,4 +334,209 @@ func TestLocalSourceFetch(t *testing.T) {
 	if _, err := os.Stat(destDir + "/.git"); err == nil {
 		t.Error(".git directory should not be copied")
 	}
+}
+
+// mockCloner is a mock implementation of GitCloner for testing.
+type mockCloner struct {
+	mock.Mock
+}
+
+func (m *mockCloner) PlainCloneContext(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (Repository, error) {
+	args := m.Called(ctx, path, isBare, o)
+	repo := args.Get(0)
+	if repo == nil {
+		return nil, args.Error(1)
+	}
+	return repo.(Repository), args.Error(1)
+}
+
+// mockRepository is a mock implementation of Repository for testing.
+type mockRepository struct {
+	mock.Mock
+}
+
+func (m *mockRepository) Worktree() (Worktree, error) {
+	args := m.Called()
+	wt := args.Get(0)
+	if wt == nil {
+		return nil, args.Error(1)
+	}
+	return wt.(Worktree), args.Error(1)
+}
+
+// mockWorktree is a mock implementation of Worktree for testing.
+type mockWorktree struct {
+	mock.Mock
+}
+
+func (m *mockWorktree) Checkout(opts *git.CheckoutOptions) error {
+	args := m.Called(opts)
+	return args.Error(0)
+}
+
+func TestGitSourceFetch_DefaultBranch_Success(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	repo := new(mockRepository)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
+		return o.Depth == 1 && o.URL == "https://github.com/user/repo"
+	})).Return(repo, nil)
+
+	gs := &GitSource{
+		URL:    "https://github.com/user/repo",
+		Cloner: cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.NoError(t, err)
+	cloner.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_DefaultBranch_CloneError(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).
+		Return(nil, errors.New("network error"))
+
+	gs := &GitSource{
+		URL:    "https://github.com/user/repo",
+		Cloner: cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cloning repository")
+	assert.Contains(t, err.Error(), "network error")
+	cloner.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_Tag_Success(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	repo := new(mockRepository)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
+		return o.Depth == 1 && o.SingleBranch && o.ReferenceName.String() == "refs/tags/v1.0.0"
+	})).Return(repo, nil)
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "v1.0.0",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.NoError(t, err)
+	cloner.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_Tag_CloneError(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).
+		Return(nil, errors.New("tag not found"))
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "v1.0.0",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cloning repository")
+	cloner.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_CommitHash_Success(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	repo := new(mockRepository)
+	worktree := new(mockWorktree)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
+		return o.Depth == 0 // full clone for commit hash
+	})).Return(repo, nil)
+
+	repo.On("Worktree").Return(worktree, nil)
+	worktree.On("Checkout", mock.Anything).Return(nil)
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "abc1234def",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.NoError(t, err)
+	cloner.AssertExpectations(t)
+	repo.AssertExpectations(t)
+	worktree.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_CommitHash_CloneError(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).
+		Return(nil, errors.New("clone failed"))
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "abc1234def",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cloning repository")
+	cloner.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_CommitHash_WorktreeError(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	repo := new(mockRepository)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).Return(repo, nil)
+	repo.On("Worktree").Return(nil, errors.New("worktree error"))
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "abc1234def",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "getting worktree")
+	cloner.AssertExpectations(t)
+	repo.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_CommitHash_CheckoutError(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	repo := new(mockRepository)
+	worktree := new(mockWorktree)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).Return(repo, nil)
+	repo.On("Worktree").Return(worktree, nil)
+	worktree.On("Checkout", mock.Anything).Return(errors.New("commit not found"))
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "abc1234def",
+		Cloner:  cloner,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "checking out commit")
+	cloner.AssertExpectations(t)
+	repo.AssertExpectations(t)
+	worktree.AssertExpectations(t)
 }
