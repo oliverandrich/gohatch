@@ -1,0 +1,13 @@
+# Build output
+/build/
+
+# Test coverage
+coverage.out
+*.coverprofile
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+*.swp
