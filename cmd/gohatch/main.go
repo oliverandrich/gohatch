@@ -21,6 +21,7 @@ var (
 	module     string
 	directory  string
 	extensions []string
+	dryRun     bool
 )
 
 func main() {
@@ -43,13 +44,19 @@ Examples:
   gohatch user/template github.com/me/myapp
   gohatch github.com/user/template@v1.0.0 github.com/me/myapp
   gohatch ./local-template github.com/me/myapp customdir
-  gohatch -e toml -e sh user/template github.com/me/myapp`,
+  gohatch -e toml -e sh user/template github.com/me/myapp
+  gohatch --dry-run user/template github.com/me/myapp`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:        "extension",
 				Aliases:     []string{"e"},
 				Usage:       "additional file extensions for module replacement (e.g., -e toml -e sh)",
 				Destination: &extensions,
+			},
+			&cli.BoolFlag{
+				Name:        "dry-run",
+				Usage:       "show what would be done without making any changes",
+				Destination: &dryRun,
 			},
 		},
 		Arguments: []cli.Argument{
@@ -89,15 +96,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		directory = path.Base(module)
 	}
 
-	// Validate target directory
-	if err := validateDirectory(directory); err != nil {
-		return err
-	}
-
 	// Parse the source
 	src, err := source.Parse(srcInput)
 	if err != nil {
 		return fmt.Errorf("parsing source: %w", err)
+	}
+
+	// Dry-run mode: show what would be done
+	if dryRun {
+		return runDryRun(src)
+	}
+
+	// Validate target directory
+	if err := validateDirectory(directory); err != nil {
+		return err
 	}
 
 	// Fetch the template
@@ -122,6 +134,39 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	fmt.Printf("Created %s\n", directory)
+	return nil
+}
+
+func runDryRun(src source.Source) error {
+	fmt.Println("Dry-run mode: no changes will be made")
+	fmt.Println()
+
+	// Show source info
+	switch s := src.(type) {
+	case *source.GitSource:
+		fmt.Printf("Source:    %s\n", s.URL)
+		if s.Version != "" {
+			fmt.Printf("Version:   %s\n", s.Version)
+		}
+	case *source.LocalSource:
+		fmt.Printf("Source:    %s (local)\n", s.Path)
+	}
+
+	// Show target info
+	fmt.Printf("Directory: %s\n", directory)
+	fmt.Printf("Module:    %s\n", module)
+
+	// Show extensions if any
+	if len(extensions) > 0 {
+		fmt.Printf("Extensions: %v\n", extensions)
+	}
+
+	fmt.Println()
+	fmt.Println("Would fetch template and rewrite module path in all .go files.")
+	if len(extensions) > 0 {
+		fmt.Println("Would also replace module path in files with specified extensions.")
+	}
+
 	return nil
 }
 
