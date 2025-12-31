@@ -72,6 +72,7 @@ func TestBuildGitURL(t *testing.T) {
 		{"codeberg.org/user/repo", "https://codeberg.org/user/repo"},
 		{"gitlab.com/user/repo", "https://gitlab.com/user/repo"},
 		{"user/repo/subdir", "https://github.com/user/repo/subdir"},
+		{"singlepart", "https://github.com/singlepart"}, // no slash
 	}
 
 	for _, tt := range tests {
@@ -153,6 +154,11 @@ func TestParse(t *testing.T) {
 			input:   "./some/path@v1.0.0",
 			wantErr: true,
 		},
+		{
+			name:    "absolute path with version error",
+			input:   "/absolute/path@v1.0.0",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -213,6 +219,65 @@ func TestParseExistingDirectory(t *testing.T) {
 	}
 	if ls.Path != tmpDir {
 		t.Errorf("Path = %q, want %q", ls.Path, tmpDir)
+	}
+}
+
+func TestParseExistingDirectoryWithVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	_, err := Parse(tmpDir + "@v1.0.0")
+	if err == nil {
+		t.Error("Parse() should error for existing directory with version")
+	}
+}
+
+func TestLocalSourceFetchPreservesPermissions(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir() + "/dest"
+
+	// Create executable file
+	execFile := srcDir + "/script.sh"
+	if err := os.WriteFile(execFile, []byte("#!/bin/bash"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ls := &LocalSource{Path: srcDir}
+	if err := ls.Fetch(context.Background(), destDir); err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+
+	// Verify permissions preserved
+	info, err := os.Stat(destDir + "/script.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Errorf("permissions = %o, want 0755", info.Mode().Perm())
+	}
+}
+
+func TestLocalSourceFetchWithDotFiles(t *testing.T) {
+	srcDir := t.TempDir()
+	destDir := t.TempDir() + "/dest"
+
+	// Create various dot files (should be copied except .git)
+	dotFiles := []string{".gitignore", ".env.example", ".golangci.yml"}
+	for _, f := range dotFiles {
+		if err := os.WriteFile(srcDir+"/"+f, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ls := &LocalSource{Path: srcDir}
+	if err := ls.Fetch(context.Background(), destDir); err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+
+	// Verify all dot files were copied
+	for _, f := range dotFiles {
+		if _, err := os.Stat(destDir + "/" + f); err != nil {
+			t.Errorf("%s not copied: %v", f, err)
+		}
 	}
 }
 
