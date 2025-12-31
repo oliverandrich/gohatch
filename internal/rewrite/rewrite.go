@@ -19,60 +19,69 @@ import (
 // Module rewrites the module path in the given directory.
 // It updates go.mod, all import paths in .go files, and performs
 // string replacement in files with the specified extra extensions.
-func Module(dir, newModule string, extraExtensions []string) error {
+// Returns the list of modified files.
+func Module(dir, newModule string, extraExtensions []string) ([]string, error) {
+	var modifiedFiles []string
+
 	// Read and parse go.mod
 	goModPath := filepath.Clean(filepath.Join(dir, "go.mod"))
 	data, err := os.ReadFile(goModPath)
 	if err != nil {
-		return fmt.Errorf("reading go.mod: %w", err)
+		return nil, fmt.Errorf("reading go.mod: %w", err)
 	}
 
 	f, err := modfile.ParseLax(goModPath, data, nil)
 	if err != nil {
-		return fmt.Errorf("parsing go.mod: %w", err)
+		return nil, fmt.Errorf("parsing go.mod: %w", err)
 	}
 
 	oldModule := f.Module.Mod.Path
 	if oldModule == newModule {
-		return nil // Nothing to do
+		return nil, nil // Nothing to do
 	}
 
 	// Update go.mod
 	err = f.AddModuleStmt(newModule)
 	if err != nil {
-		return fmt.Errorf("updating module statement: %w", err)
+		return nil, fmt.Errorf("updating module statement: %w", err)
 	}
 
 	newData, err := f.Format()
 	if err != nil {
-		return fmt.Errorf("formatting go.mod: %w", err)
+		return nil, fmt.Errorf("formatting go.mod: %w", err)
 	}
 
 	err = os.WriteFile(goModPath, newData, 0o600)
 	if err != nil {
-		return fmt.Errorf("writing go.mod: %w", err)
+		return nil, fmt.Errorf("writing go.mod: %w", err)
 	}
+	modifiedFiles = append(modifiedFiles, "go.mod")
 
 	// Rewrite imports in all .go files
-	err = rewriteGoFiles(dir, oldModule, newModule)
+	goFiles, err := rewriteGoFiles(dir, oldModule, newModule)
 	if err != nil {
-		return fmt.Errorf("rewriting imports: %w", err)
+		return nil, fmt.Errorf("rewriting imports: %w", err)
 	}
+	modifiedFiles = append(modifiedFiles, goFiles...)
 
 	// Rewrite extra extension files with simple string replacement
 	if len(extraExtensions) > 0 {
-		err = rewriteExtraFiles(dir, oldModule, newModule, extraExtensions)
+		extraFiles, err := rewriteExtraFiles(dir, oldModule, newModule, extraExtensions)
 		if err != nil {
-			return fmt.Errorf("rewriting extra files: %w", err)
+			return nil, fmt.Errorf("rewriting extra files: %w", err)
 		}
+		modifiedFiles = append(modifiedFiles, extraFiles...)
 	}
 
-	return nil
+	return modifiedFiles, nil
 }
 
 // rewriteGoFiles walks through all .go files and rewrites import paths.
-func rewriteGoFiles(dir, oldModule, newModule string) error {
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+// Returns the list of modified files.
+func rewriteGoFiles(dir, oldModule, newModule string) ([]string, error) {
+	var modifiedFiles []string
+
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -91,17 +100,28 @@ func rewriteGoFiles(dir, oldModule, newModule string) error {
 			return nil
 		}
 
-		return rewriteGoFile(path, oldModule, newModule)
+		modified, err := rewriteGoFile(path, oldModule, newModule)
+		if err != nil {
+			return err
+		}
+		if modified {
+			relPath, _ := filepath.Rel(dir, path)
+			modifiedFiles = append(modifiedFiles, relPath)
+		}
+		return nil
 	})
+
+	return modifiedFiles, err
 }
 
 // rewriteGoFile rewrites import paths in a single .go file using AST.
-func rewriteGoFile(filePath, oldModule, newModule string) error {
+// Returns true if the file was modified.
+func rewriteGoFile(filePath, oldModule, newModule string) (bool, error) {
 	cleanPath := filepath.Clean(filePath)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, cleanPath, nil, parser.ParseComments)
 	if err != nil {
-		return fmt.Errorf("parsing %s: %w", cleanPath, err)
+		return false, fmt.Errorf("parsing %s: %w", cleanPath, err)
 	}
 
 	modified := false
@@ -118,27 +138,30 @@ func rewriteGoFile(filePath, oldModule, newModule string) error {
 	}
 
 	if !modified {
-		return nil
+		return false, nil
 	}
 
 	// Format and write back
 	var buf bytes.Buffer
 	err = format.Node(&buf, fset, f)
 	if err != nil {
-		return fmt.Errorf("formatting %s: %w", cleanPath, err)
+		return false, fmt.Errorf("formatting %s: %w", cleanPath, err)
 	}
 
 	info, err := os.Stat(cleanPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return os.WriteFile(cleanPath, buf.Bytes(), info.Mode())
+	return true, os.WriteFile(cleanPath, buf.Bytes(), info.Mode())
 }
 
 // rewriteExtraFiles walks through files with specified extensions
 // and performs simple string replacement.
-func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) error {
+// Returns the list of modified files.
+func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) ([]string, error) {
+	var modifiedFiles []string
+
 	// Normalize extensions (ensure they start with a dot)
 	extSet := make(map[string]bool)
 	for _, ext := range extensions {
@@ -146,7 +169,7 @@ func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) er
 		extSet["."+ext] = true
 	}
 
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -165,16 +188,27 @@ func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) er
 			return nil
 		}
 
-		return rewriteTextFile(path, oldModule, newModule)
+		modified, err := rewriteTextFile(path, oldModule, newModule)
+		if err != nil {
+			return err
+		}
+		if modified {
+			relPath, _ := filepath.Rel(dir, path)
+			modifiedFiles = append(modifiedFiles, relPath)
+		}
+		return nil
 	})
+
+	return modifiedFiles, err
 }
 
 // rewriteTextFile performs simple string replacement in a text file.
-func rewriteTextFile(filePath, oldModule, newModule string) error {
+// Returns true if the file was modified.
+func rewriteTextFile(filePath, oldModule, newModule string) (bool, error) {
 	cleanPath := filepath.Clean(filePath)
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", cleanPath, err)
+		return false, fmt.Errorf("reading %s: %w", cleanPath, err)
 	}
 
 	// Simple string replacement
@@ -182,15 +216,15 @@ func rewriteTextFile(filePath, oldModule, newModule string) error {
 
 	// Only write if changed
 	if bytes.Equal(data, newData) {
-		return nil
+		return false, nil
 	}
 
 	info, err := os.Stat(cleanPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return os.WriteFile(cleanPath, newData, info.Mode())
+	return true, os.WriteFile(cleanPath, newData, info.Mode())
 }
 
 // ReadModulePath reads the module path from a go.mod file.
@@ -217,10 +251,13 @@ func HasGoMod(dir string) bool {
 
 // Variables replaces template variables in all files.
 // Variables use dunder-style syntax: __VariableName__ → value.
-func Variables(dir string, vars map[string]string, extraExtensions []string) error {
+// Returns the list of modified files.
+func Variables(dir string, vars map[string]string, extraExtensions []string) ([]string, error) {
 	if len(vars) == 0 {
-		return nil
+		return nil, nil
 	}
+
+	var modifiedFiles []string
 
 	// Build extension set: .go + extra extensions
 	extSet := make(map[string]bool)
@@ -230,7 +267,7 @@ func Variables(dir string, vars map[string]string, extraExtensions []string) err
 		extSet["."+ext] = true
 	}
 
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -249,16 +286,27 @@ func Variables(dir string, vars map[string]string, extraExtensions []string) err
 			return nil
 		}
 
-		return replaceVariablesInFile(path, vars)
+		modified, err := replaceVariablesInFile(path, vars)
+		if err != nil {
+			return err
+		}
+		if modified {
+			relPath, _ := filepath.Rel(dir, path)
+			modifiedFiles = append(modifiedFiles, relPath)
+		}
+		return nil
 	})
+
+	return modifiedFiles, err
 }
 
 // replaceVariablesInFile replaces __Key__ with Value for all variables.
-func replaceVariablesInFile(filePath string, vars map[string]string) error {
+// Returns true if the file was modified.
+func replaceVariablesInFile(filePath string, vars map[string]string) (bool, error) {
 	cleanPath := filepath.Clean(filePath)
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", cleanPath, err)
+		return false, fmt.Errorf("reading %s: %w", cleanPath, err)
 	}
 
 	// Replace each variable
@@ -270,13 +318,13 @@ func replaceVariablesInFile(filePath string, vars map[string]string) error {
 
 	// Only write if changed
 	if bytes.Equal(data, newData) {
-		return nil
+		return false, nil
 	}
 
 	info, err := os.Stat(cleanPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return os.WriteFile(cleanPath, newData, info.Mode())
+	return true, os.WriteFile(cleanPath, newData, info.Mode())
 }

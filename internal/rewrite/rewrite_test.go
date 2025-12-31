@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// Run Module rewrite
-	err := Module(tmpDir, "github.com/new/project", nil)
+	_, err := Module(tmpDir, "github.com/new/project", nil)
 	if err != nil {
 		t.Fatalf("Module() error = %v", err)
 	}
@@ -82,7 +82,7 @@ go 1.21
 	}
 
 	// Should return nil without changes when module is the same
-	err := Module(tmpDir, "github.com/same/module", nil)
+	_, err := Module(tmpDir, "github.com/same/module", nil)
 	if err != nil {
 		t.Fatalf("Module() error = %v", err)
 	}
@@ -118,7 +118,7 @@ version: 1.0.0
 	}
 
 	// Run Module rewrite with extra extensions
-	err := Module(tmpDir, "github.com/new/project", []string{"toml", "yaml"})
+	_, err := Module(tmpDir, "github.com/new/project", []string{"toml", "yaml"})
 	if err != nil {
 		t.Fatalf("Module() error = %v", err)
 	}
@@ -162,7 +162,7 @@ echo "hello"
 	}
 
 	// Extensions with dot prefix should also work
-	err := Module(tmpDir, "github.com/new/project", []string{".sh"})
+	_, err := Module(tmpDir, "github.com/new/project", []string{".sh"})
 	if err != nil {
 		t.Fatalf("Module() error = %v", err)
 	}
@@ -201,7 +201,7 @@ import "github.com/old/module/internal"
 		t.Fatal(err)
 	}
 
-	err := Module(tmpDir, "github.com/new/project", nil)
+	_, err := Module(tmpDir, "github.com/new/project", nil)
 	if err != nil {
 		t.Fatalf("Module() error = %v", err)
 	}
@@ -282,7 +282,7 @@ func main() {
 	// Get original mod time
 	origInfo, _ := os.Stat(filePath)
 
-	err := rewriteGoFile(filePath, "github.com/other/module", "github.com/new/module")
+	_, err := rewriteGoFile(filePath, "github.com/other/module", "github.com/new/module")
 	if err != nil {
 		t.Fatalf("rewriteGoFile() error = %v", err)
 	}
@@ -309,7 +309,7 @@ func TestRewriteTextFileNoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := rewriteTextFile(filePath, "github.com/old/module", "github.com/new/module")
+	_, err := rewriteTextFile(filePath, "github.com/old/module", "github.com/new/module")
 	if err != nil {
 		t.Fatalf("rewriteTextFile() error = %v", err)
 	}
@@ -347,7 +347,7 @@ author = "__Author__"
 		"Author":      "Oliver Andrich",
 	}
 
-	err := Variables(tmpDir, vars, []string{"toml"})
+	_, err := Variables(tmpDir, vars, []string{"toml"})
 	if err != nil {
 		t.Fatalf("Variables() error = %v", err)
 	}
@@ -381,7 +381,7 @@ func TestVariablesEmptyMap(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Should return nil immediately for empty map
-	err := Variables(tmpDir, map[string]string{}, nil)
+	_, err := Variables(tmpDir, map[string]string{}, nil)
 	if err != nil {
 		t.Fatalf("Variables() error = %v", err)
 	}
@@ -403,7 +403,7 @@ const Name = "test"
 		"ProjectName": "MyApp",
 	}
 
-	err := Variables(tmpDir, vars, nil)
+	_, err := Variables(tmpDir, vars, nil)
 	if err != nil {
 		t.Fatalf("Variables() error = %v", err)
 	}
@@ -435,7 +435,7 @@ const Name = "__ProjectName__"
 		"ProjectName": "MyApp",
 	}
 
-	err := Variables(tmpDir, vars, nil)
+	_, err := Variables(tmpDir, vars, nil)
 	if err != nil {
 		t.Fatalf("Variables() error = %v", err)
 	}
