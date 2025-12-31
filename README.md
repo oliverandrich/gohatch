@@ -83,8 +83,11 @@ gohatch [options] <source> <module> [directory]
 | Full URL | `github.com/user/repo` |
 | Other Git hosts | `codeberg.org/user/repo` |
 | Specific tag | `user/repo@v1.0.0` |
+| Specific branch | `user/repo@main` |
 | Specific commit | `user/repo@abc1234` |
 | Local directory | `./my-template` |
+
+**Note:** gohatch automatically detects whether the version is a tag, branch, or commit hash by querying the remote repository.
 
 ## Examples
 
@@ -94,10 +97,16 @@ Create a new project from a GitHub template:
 gohatch user/go-template github.com/me/myapp
 ```
 
-Use a specific version:
+Use a specific tag:
 
 ```bash
 gohatch user/go-template@v1.0.0 github.com/me/myapp
+```
+
+Use a specific branch:
+
+```bash
+gohatch user/go-template@main github.com/me/myapp
 ```
 
 Specify output directory:

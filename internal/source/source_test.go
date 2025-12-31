@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -374,6 +375,25 @@ func (m *mockWorktree) Checkout(opts *git.CheckoutOptions) error {
 	return args.Error(0)
 }
 
+// mockLister is a mock implementation of RemoteLister for testing.
+type mockLister struct {
+	mock.Mock
+}
+
+func (m *mockLister) List(o *git.ListOptions) ([]*plumbing.Reference, error) {
+	args := m.Called(o)
+	refs := args.Get(0)
+	if refs == nil {
+		return nil, args.Error(1)
+	}
+	return refs.([]*plumbing.Reference), args.Error(1)
+}
+
+// Helper to create mock refs
+func mockRef(refPath string) *plumbing.Reference {
+	return plumbing.NewReferenceFromStrings(refPath, "0000000000000000000000000000000000000000")
+}
+
 func TestGitSourceFetch_DefaultBranch_Success(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
@@ -415,7 +435,14 @@ func TestGitSourceFetch_DefaultBranch_CloneError(t *testing.T) {
 func TestGitSourceFetch_Tag_Success(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
 	repo := new(mockRepository)
+
+	// Lister returns v1.0.0 as a tag
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{
+		mockRef("refs/tags/v1.0.0"),
+		mockRef("refs/heads/main"),
+	}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
 		return o.Depth == 1 && o.SingleBranch && o.ReferenceName.String() == "refs/tags/v1.0.0"
@@ -425,16 +452,23 @@ func TestGitSourceFetch_Tag_Success(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "v1.0.0",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
 	assert.NoError(t, err)
 	cloner.AssertExpectations(t)
+	lister.AssertExpectations(t)
 }
 
 func TestGitSourceFetch_Tag_CloneError(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
+
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{
+		mockRef("refs/tags/v1.0.0"),
+	}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).
 		Return(nil, errors.New("tag not found"))
@@ -443,6 +477,7 @@ func TestGitSourceFetch_Tag_CloneError(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "v1.0.0",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
@@ -451,11 +486,74 @@ func TestGitSourceFetch_Tag_CloneError(t *testing.T) {
 	cloner.AssertExpectations(t)
 }
 
+func TestGitSourceFetch_Branch_Success(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	lister := new(mockLister)
+	repo := new(mockRepository)
+
+	// Lister returns main as a branch
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{
+		mockRef("refs/tags/v1.0.0"),
+		mockRef("refs/heads/main"),
+	}, nil)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
+		return o.Depth == 1 && o.SingleBranch && o.ReferenceName.String() == "refs/heads/main"
+	})).Return(repo, nil)
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "main",
+		Cloner:  cloner,
+		Lister:  lister,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.NoError(t, err)
+	cloner.AssertExpectations(t)
+	lister.AssertExpectations(t)
+}
+
+func TestGitSourceFetch_Branch_FeatureBranch(t *testing.T) {
+	destDir := t.TempDir() + "/dest"
+	cloner := new(mockCloner)
+	lister := new(mockLister)
+	repo := new(mockRepository)
+
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{
+		mockRef("refs/heads/feature/new-feature"),
+	}, nil)
+
+	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
+		return o.Depth == 1 && o.SingleBranch && o.ReferenceName.String() == "refs/heads/feature/new-feature"
+	})).Return(repo, nil)
+
+	gs := &GitSource{
+		URL:     "https://github.com/user/repo",
+		Version: "feature/new-feature",
+		Cloner:  cloner,
+		Lister:  lister,
+	}
+
+	err := gs.Fetch(context.Background(), destDir)
+	assert.NoError(t, err)
+	cloner.AssertExpectations(t)
+	lister.AssertExpectations(t)
+}
+
 func TestGitSourceFetch_CommitHash_Success(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
 	repo := new(mockRepository)
 	worktree := new(mockWorktree)
+
+	// Lister returns refs that don't match, so it falls back to commit
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{
+		mockRef("refs/tags/v1.0.0"),
+		mockRef("refs/heads/main"),
+	}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.MatchedBy(func(o *git.CloneOptions) bool {
 		return o.Depth == 0 // full clone for commit hash
@@ -468,11 +566,13 @@ func TestGitSourceFetch_CommitHash_Success(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "abc1234def",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
 	assert.NoError(t, err)
 	cloner.AssertExpectations(t)
+	lister.AssertExpectations(t)
 	repo.AssertExpectations(t)
 	worktree.AssertExpectations(t)
 }
@@ -480,6 +580,9 @@ func TestGitSourceFetch_CommitHash_Success(t *testing.T) {
 func TestGitSourceFetch_CommitHash_CloneError(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
+
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).
 		Return(nil, errors.New("clone failed"))
@@ -488,6 +591,7 @@ func TestGitSourceFetch_CommitHash_CloneError(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "abc1234def",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
@@ -499,7 +603,10 @@ func TestGitSourceFetch_CommitHash_CloneError(t *testing.T) {
 func TestGitSourceFetch_CommitHash_WorktreeError(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
 	repo := new(mockRepository)
+
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).Return(repo, nil)
 	repo.On("Worktree").Return(nil, errors.New("worktree error"))
@@ -508,6 +615,7 @@ func TestGitSourceFetch_CommitHash_WorktreeError(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "abc1234def",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
@@ -520,8 +628,11 @@ func TestGitSourceFetch_CommitHash_WorktreeError(t *testing.T) {
 func TestGitSourceFetch_CommitHash_CheckoutError(t *testing.T) {
 	destDir := t.TempDir() + "/dest"
 	cloner := new(mockCloner)
+	lister := new(mockLister)
 	repo := new(mockRepository)
 	worktree := new(mockWorktree)
+
+	lister.On("List", mock.Anything).Return([]*plumbing.Reference{}, nil)
 
 	cloner.On("PlainCloneContext", mock.Anything, destDir, false, mock.Anything).Return(repo, nil)
 	repo.On("Worktree").Return(worktree, nil)
@@ -531,11 +642,12 @@ func TestGitSourceFetch_CommitHash_CheckoutError(t *testing.T) {
 		URL:     "https://github.com/user/repo",
 		Version: "abc1234def",
 		Cloner:  cloner,
+		Lister:  lister,
 	}
 
 	err := gs.Fetch(context.Background(), destDir)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "checking out commit")
+	assert.Contains(t, err.Error(), "checking out")
 	cloner.AssertExpectations(t)
 	repo.AssertExpectations(t)
 	worktree.AssertExpectations(t)

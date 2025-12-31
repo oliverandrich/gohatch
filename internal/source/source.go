@@ -12,12 +12,32 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/storage/memory"
 )
 
 // GitCloner abstracts git cloning operations for testing.
 type GitCloner interface {
 	PlainCloneContext(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (Repository, error)
+}
+
+// RemoteLister abstracts remote listing operations for testing.
+type RemoteLister interface {
+	List(o *git.ListOptions) ([]*plumbing.Reference, error)
+}
+
+// defaultRemoteLister creates a remote and lists its references.
+type defaultRemoteLister struct {
+	url string
+}
+
+func (d defaultRemoteLister) List(o *git.ListOptions) ([]*plumbing.Reference, error) {
+	remote := git.NewRemote(memory.NewStorage(), &config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{d.url},
+	})
+	return remote.List(o)
 }
 
 // Repository abstracts git repository operations for testing.
@@ -60,7 +80,8 @@ type Source interface {
 
 // GitSource represents a remote Git repository.
 type GitSource struct {
-	Cloner  GitCloner // nil uses default go-git cloner
+	Cloner  GitCloner    // nil uses default go-git cloner
+	Lister  RemoteLister // nil uses default remote lister
 	URL     string
 	Version string
 }
@@ -135,6 +156,37 @@ func isCommitHash(version string) bool {
 	return true
 }
 
+// refType represents the type of a git reference.
+type refType int
+
+const (
+	refTypeUnknown refType = iota
+	refTypeTag
+	refTypeBranch
+)
+
+// resolveRefType queries the remote to determine if version is a tag or branch.
+func resolveRefType(lister RemoteLister, version string) refType {
+	refs, err := lister.List(&git.ListOptions{})
+	if err != nil {
+		return refTypeUnknown
+	}
+
+	tagRef := plumbing.NewTagReferenceName(version)
+	branchRef := plumbing.NewBranchReferenceName(version)
+
+	for _, ref := range refs {
+		if ref.Name() == tagRef {
+			return refTypeTag
+		}
+		if ref.Name() == branchRef {
+			return refTypeBranch
+		}
+	}
+
+	return refTypeUnknown
+}
+
 // Fetch clones the Git repository to the destination directory.
 func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 	cloner := s.Cloner
@@ -157,8 +209,27 @@ func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 		return removeGitDir(dest)
 	}
 
-	// Commit hash: need full clone, then checkout
-	if isCommitHash(s.Version) {
+	// Query remote to determine reference type
+	lister := s.Lister
+	if lister == nil {
+		lister = defaultRemoteLister{url: s.URL}
+	}
+
+	refType := resolveRefType(lister, s.Version)
+
+	switch refType {
+	case refTypeTag:
+		cloneOpts.Depth = 1
+		cloneOpts.SingleBranch = true
+		cloneOpts.ReferenceName = plumbing.NewTagReferenceName(s.Version)
+
+	case refTypeBranch:
+		cloneOpts.Depth = 1
+		cloneOpts.SingleBranch = true
+		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(s.Version)
+
+	case refTypeUnknown:
+		// Unknown ref type: assume commit hash, need full clone
 		repo, err := cloner.PlainCloneContext(ctx, dest, false, cloneOpts)
 		if err != nil {
 			return fmt.Errorf("cloning repository: %w", err)
@@ -173,16 +244,11 @@ func (s *GitSource) Fetch(ctx context.Context, dest string) error {
 			Hash: plumbing.NewHash(s.Version),
 		})
 		if err != nil {
-			return fmt.Errorf("checking out commit %s: %w", s.Version, err)
+			return fmt.Errorf("checking out %s: %w", s.Version, err)
 		}
 
 		return removeGitDir(dest)
 	}
-
-	// Tag: shallow clone with tag reference
-	cloneOpts.Depth = 1
-	cloneOpts.ReferenceName = plumbing.NewTagReferenceName(s.Version)
-	cloneOpts.SingleBranch = true
 
 	_, err := cloner.PlainCloneContext(ctx, dest, false, cloneOpts)
 	if err != nil {
