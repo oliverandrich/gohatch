@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (c) 2025 Oliver Andrich
+
+version: 2
+project_name: gohatch
+
+builds:
+  - main: ./cmd/gohatch
+    binary: gohatch
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+      - goos: darwin
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+  groups:
+    - title: Features
+      regexp: "^feat"
+    - title: Bug Fixes
+      regexp: "^fix"
+    - title: Others
+      order: 999
+
+brews:
+  - repository:
+      owner: oliverandrich
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: Oliver Andrich
+      email: oliver@andrich.me
+    homepage: https://github.com/oliverandrich/gohatch
+    description: A project scaffolding tool for Go
+    license: EUPL-1.2
+    install: |
+      bin.install "gohatch"
+    test: |
+      system "#{bin}/gohatch", "--version"
+
+release:
+  draft: false
+  prerelease: auto
