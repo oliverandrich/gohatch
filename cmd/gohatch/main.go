@@ -176,6 +176,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fmt.Println("Warning: template has no go.mod, skipping module rewrite")
 	}
 
+	// Rename paths containing template variables
+	vars := parseVariables(variables, path.Base(directory))
+	if len(vars) > 0 {
+		renamedPaths, err := rewrite.RenamePaths(directory, vars)
+		if err != nil {
+			return fmt.Errorf("renaming paths: %w", err)
+		}
+		if len(renamedPaths) > 0 {
+			fmt.Println("Renaming paths...")
+			for _, r := range renamedPaths {
+				verboseLog("Renamed: %s", r)
+			}
+		}
+	}
+
 	// Rewrite module path if go.mod exists
 	if rewrite.HasGoMod(directory) {
 		oldModule, err := rewrite.ReadModulePath(directory)
@@ -196,8 +211,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	// Replace template variables
-	vars := parseVariables(variables, path.Base(directory))
+	// Replace template variables in file contents
 	if len(vars) > 0 {
 		fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
 		modifiedFiles, err := rewrite.Variables(directory, vars, extensions)
