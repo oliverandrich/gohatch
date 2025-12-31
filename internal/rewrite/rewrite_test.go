@@ -319,3 +319,133 @@ func TestRewriteTextFileNoChanges(t *testing.T) {
 		t.Errorf("file was modified when it shouldn't be")
 	}
 }
+
+func TestVariables(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a .go file with variables
+	goFile := `package main
+
+const ProjectName = "__ProjectName__"
+const Author = "__Author__"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte(goFile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a .toml file with variables
+	tomlFile := `[project]
+name = "__ProjectName__"
+author = "__Author__"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(tomlFile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{
+		"ProjectName": "MyApp",
+		"Author":      "Oliver Andrich",
+	}
+
+	err := Variables(tmpDir, vars, []string{"toml"})
+	if err != nil {
+		t.Fatalf("Variables() error = %v", err)
+	}
+
+	// Check .go file
+	data, err := os.ReadFile(filepath.Join(tmpDir, "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `const ProjectName = "MyApp"`) {
+		t.Errorf(".go file: ProjectName not replaced, got: %s", data)
+	}
+	if !strings.Contains(string(data), `const Author = "Oliver Andrich"`) {
+		t.Errorf(".go file: Author not replaced, got: %s", data)
+	}
+
+	// Check .toml file
+	data, err = os.ReadFile(filepath.Join(tmpDir, "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `name = "MyApp"`) {
+		t.Errorf(".toml file: ProjectName not replaced, got: %s", data)
+	}
+	if !strings.Contains(string(data), `author = "Oliver Andrich"`) {
+		t.Errorf(".toml file: Author not replaced, got: %s", data)
+	}
+}
+
+func TestVariablesEmptyMap(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Should return nil immediately for empty map
+	err := Variables(tmpDir, map[string]string{}, nil)
+	if err != nil {
+		t.Fatalf("Variables() error = %v", err)
+	}
+}
+
+func TestVariablesNoChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	content := `package main
+
+const Name = "test"
+`
+	filePath := filepath.Join(tmpDir, "main.go")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{
+		"ProjectName": "MyApp",
+	}
+
+	err := Variables(tmpDir, vars, nil)
+	if err != nil {
+		t.Fatalf("Variables() error = %v", err)
+	}
+
+	// File should not be modified (no matching placeholders)
+	data, _ := os.ReadFile(filePath)
+	if string(data) != content {
+		t.Errorf("file was modified when it shouldn't be")
+	}
+}
+
+func TestVariablesSkipsVendor(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create vendor directory with a file containing variables
+	vendorDir := filepath.Join(tmpDir, "vendor", "pkg")
+	if err := os.MkdirAll(vendorDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	vendorFile := `package pkg
+const Name = "__ProjectName__"
+`
+	if err := os.WriteFile(filepath.Join(vendorDir, "pkg.go"), []byte(vendorFile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{
+		"ProjectName": "MyApp",
+	}
+
+	err := Variables(tmpDir, vars, nil)
+	if err != nil {
+		t.Fatalf("Variables() error = %v", err)
+	}
+
+	// Vendor file should NOT be modified
+	data, err := os.ReadFile(filepath.Join(vendorDir, "pkg.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "MyApp") {
+		t.Errorf("vendor file should not be modified, got: %s", data)
+	}
+}

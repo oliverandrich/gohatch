@@ -214,3 +214,69 @@ func HasGoMod(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "go.mod"))
 	return err == nil
 }
+
+// Variables replaces template variables in all files.
+// Variables use dunder-style syntax: __VariableName__ → value.
+func Variables(dir string, vars map[string]string, extraExtensions []string) error {
+	if len(vars) == 0 {
+		return nil
+	}
+
+	// Build extension set: .go + extra extensions
+	extSet := make(map[string]bool)
+	extSet[".go"] = true
+	for _, ext := range extraExtensions {
+		ext = strings.TrimPrefix(ext, ".")
+		extSet["."+ext] = true
+	}
+
+	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if d.IsDir() {
+			if d.Name() == "vendor" || d.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Check if file extension matches
+		ext := filepath.Ext(path)
+		if !extSet[ext] {
+			return nil
+		}
+
+		return replaceVariablesInFile(path, vars)
+	})
+}
+
+// replaceVariablesInFile replaces __Key__ with Value for all variables.
+func replaceVariablesInFile(filePath string, vars map[string]string) error {
+	cleanPath := filepath.Clean(filePath)
+	data, err := os.ReadFile(cleanPath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", cleanPath, err)
+	}
+
+	// Replace each variable
+	newData := data
+	for key, value := range vars {
+		placeholder := "__" + key + "__"
+		newData = bytes.ReplaceAll(newData, []byte(placeholder), []byte(value))
+	}
+
+	// Only write if changed
+	if bytes.Equal(data, newData) {
+		return nil
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(cleanPath, newData, info.Mode())
+}

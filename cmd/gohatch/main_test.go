@@ -135,3 +135,67 @@ func TestRunDryRun_WithExtensions(t *testing.T) {
 	assert.Contains(t, output, "Extensions: [toml yaml]")
 	assert.Contains(t, output, "files with specified extensions")
 }
+
+func TestParseVariables_DefaultProjectName(t *testing.T) {
+	vars := parseVariables(nil, "myapp")
+
+	assert.Equal(t, "myapp", vars["ProjectName"])
+	assert.Len(t, vars, 1)
+}
+
+func TestParseVariables_WithVars(t *testing.T) {
+	input := []string{"Author=Oliver Andrich", "License=MIT"}
+	vars := parseVariables(input, "myapp")
+
+	assert.Equal(t, "myapp", vars["ProjectName"])
+	assert.Equal(t, "Oliver Andrich", vars["Author"])
+	assert.Equal(t, "MIT", vars["License"])
+	assert.Len(t, vars, 3)
+}
+
+func TestParseVariables_OverrideProjectName(t *testing.T) {
+	input := []string{"ProjectName=CustomName"}
+	vars := parseVariables(input, "myapp")
+
+	assert.Equal(t, "CustomName", vars["ProjectName"])
+	assert.Len(t, vars, 1)
+}
+
+func TestParseVariables_ValueWithEquals(t *testing.T) {
+	// strings.Cut splits only on the first =, so value keeps the rest
+	input := []string{"Equation=a=b+c"}
+	vars := parseVariables(input, "myapp")
+
+	assert.Equal(t, "a=b+c", vars["Equation"])
+}
+
+func TestParseVariables_InvalidEntry(t *testing.T) {
+	input := []string{"NoEqualsSign"}
+	vars := parseVariables(input, "myapp")
+
+	// Should only have default ProjectName
+	assert.Len(t, vars, 1)
+	assert.Equal(t, "myapp", vars["ProjectName"])
+}
+
+func TestFormatVariables(t *testing.T) {
+	vars := map[string]string{
+		"Author": "Oliver",
+	}
+	result := formatVariables(vars)
+
+	assert.Equal(t, "Author=Oliver", result)
+}
+
+func TestFormatVariables_Multiple(t *testing.T) {
+	vars := map[string]string{
+		"A": "1",
+		"B": "2",
+	}
+	result := formatVariables(vars)
+
+	// Order is not guaranteed, but both should be present
+	assert.Contains(t, result, "A=1")
+	assert.Contains(t, result, "B=2")
+	assert.Contains(t, result, ", ")
+}

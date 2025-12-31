@@ -7,7 +7,8 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 - Clone templates from GitHub, Codeberg, or any Git host
 - Use local directories as templates
 - Automatic module path rewriting in `go.mod` and all `.go` files
-- Support for specific tags (`@v1.0.0`) or commits (`@abc1234`)
+- Template variable substitution (`__VarName__` → `Value`)
+- Support for specific tags (`@v1.0.0`), branches (`@main`), or commits (`@abc1234`)
 - Optional string replacement in additional file types
 
 ## Requirements
@@ -73,6 +74,7 @@ gohatch [options] <source> <module> [directory]
 | Flag | Description |
 |------|-------------|
 | `-e, --extension` | Additional file extensions for module replacement |
+| `-v, --var` | Set template variable (e.g., `--var Author="Name"`) |
 | `--dry-run` | Show what would be done without making any changes |
 
 ### Source Formats
@@ -132,6 +134,52 @@ Preview what would be done (dry-run):
 ```bash
 gohatch --dry-run user/go-template github.com/me/myapp
 ```
+
+## Template Variables
+
+Templates can include placeholders that get replaced during scaffolding. Placeholders use dunder-style syntax: `__VarName__`.
+
+### Default Variables
+
+| Variable | Default Value |
+|----------|---------------|
+| `ProjectName` | Output directory name |
+
+### Setting Variables
+
+Use the `-v` or `--var` flag to set variables:
+
+```bash
+gohatch --var Author="Oliver Andrich" user/go-template github.com/me/myapp
+```
+
+Multiple variables:
+
+```bash
+gohatch -v ProjectName=MyApp -v Author="Oliver Andrich" user/go-template github.com/me/myapp
+```
+
+### Template Example
+
+In your template files:
+
+```go
+package main
+
+const AppName = "__ProjectName__"
+const Author = "__Author__"
+```
+
+After scaffolding with `--var Author="Oliver"`:
+
+```go
+package main
+
+const AppName = "myapp"
+const Author = "Oliver"
+```
+
+Variables are replaced in `.go` files and any additional extensions specified with `-e`.
 
 ## License
 

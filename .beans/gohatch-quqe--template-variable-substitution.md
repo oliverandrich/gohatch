@@ -1,11 +1,11 @@
 ---
 # gohatch-quqe
 title: Template variable substitution
-status: draft
+status: completed
 type: feature
 priority: normal
 created_at: 2025-12-31T14:46:51Z
-updated_at: 2025-12-31T14:46:51Z
+updated_at: 2025-12-31T15:24:56Z
 ---
 
 Replace template variables in files during scaffolding, similar to cookiecutter but simpler.
@@ -36,7 +36,7 @@ gohatch --var ProjectName=MyApp user/template github.com/me/myapp
 gohatch --var ProjectName=MyApp --var Author="Oliver Andrich" user/template github.com/me/myapp
 
 # Short form
-gohatch -V ProjectName=MyApp -V Author="Oliver Andrich" user/template github.com/me/myapp
+gohatch -v ProjectName=MyApp -v Author="Oliver Andrich" user/template github.com/me/myapp
 ```
 
 ## Files to Process
@@ -47,16 +47,15 @@ gohatch -V ProjectName=MyApp -V Author="Oliver Andrich" user/template github.com
 
 ## Checklist
 
-- [ ] Add `--var` / `-V` flag for key=value pairs (repeatable)
-- [ ] Parse variables into map, set ProjectName default from directory basename
-- [ ] Implement `replaceVariables(content, vars)` function
-- [ ] Integrate variable replacement into `rewriteGoFile()` 
-- [ ] Integrate variable replacement into `rewriteTextFile()`
-- [ ] Add tests for variable parsing
-- [ ] Add tests for variable replacement
-- [ ] Add tests for default ProjectName behavior
-- [ ] Update CLI help text with examples
-- [ ] Update README with variable substitution documentation
+- [x] Add `--var` / `-V` flag for key=value pairs (repeatable)
+- [x] Parse variables into map, set ProjectName default from directory basename
+- [x] Implement `replaceVariables(content, vars)` function
+- [x] Integrate variable replacement via separate `Variables()` function
+- [x] Add tests for variable parsing
+- [x] Add tests for variable replacement
+- [x] Add tests for default ProjectName behavior
+- [x] Update CLI help text with examples
+- [x] Update README with variable substitution documentation
 
 ## Future Considerations (out of scope for now)
 
