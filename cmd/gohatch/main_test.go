@@ -223,3 +223,50 @@ func TestRunDryRun_WithForce(t *testing.T) {
 	assert.Contains(t, output, "Dry-run mode")
 	assert.Contains(t, output, "--force")
 }
+
+func TestRunDryRun_WithNoGitInit(t *testing.T) {
+	oldDir, oldMod, oldExt, oldNoGitInit := directory, module, extensions, noGitInit
+	defer func() {
+		directory, module, extensions, noGitInit = oldDir, oldMod, oldExt, oldNoGitInit
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	noGitInit = true
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "--no-git-init")
+	assert.NotContains(t, output, "Would initialize git repository")
+}
+
+func TestRunDryRun_DefaultGitInit(t *testing.T) {
+	oldDir, oldMod, oldExt, oldNoGitInit := directory, module, extensions, noGitInit
+	defer func() {
+		directory, module, extensions, noGitInit = oldDir, oldMod, oldExt, oldNoGitInit
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	noGitInit = false
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Would initialize git repository with initial commit")
+}

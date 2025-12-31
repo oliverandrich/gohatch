@@ -8,6 +8,7 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 - Use local directories as templates
 - Automatic module path rewriting in `go.mod` and all `.go` files
 - Template variable substitution (`__VarName__` → `Value`)
+- Initialize git repository with initial commit (optional)
 - Support for specific tags (`@v1.0.0`), branches (`@main`), or commits (`@abc1234`)
 - Optional string replacement in additional file types
 
@@ -76,6 +77,7 @@ gohatch [options] <source> <module> [directory]
 | `-e, --extension` | Additional file extensions for module replacement |
 | `-v, --var` | Set template variable (e.g., `--var Author="Name"`) |
 | `-f, --force` | Proceed even if template has no go.mod |
+| `--no-git-init` | Skip git repository initialization |
 | `--dry-run` | Show what would be done without making any changes |
 
 ### Source Formats
