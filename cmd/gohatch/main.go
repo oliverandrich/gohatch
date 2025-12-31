@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
@@ -21,10 +22,17 @@ var (
 	module     string
 	directory  string
 	extensions []string
+	variables  []string
 	dryRun     bool
 )
 
 func main() {
+	// Remove -v alias from version flag to avoid conflict with --var
+	cli.VersionFlag = &cli.BoolFlag{
+		Name:  "version",
+		Usage: "print the version",
+	}
+
 	cmd := &cli.Command{
 		Name:      "gohatch",
 		Usage:     "A project scaffolding tool for Go",
@@ -47,6 +55,7 @@ Examples:
   gohatch user/template@main github.com/me/myapp
   gohatch ./local-template github.com/me/myapp customdir
   gohatch -e toml -e sh user/template github.com/me/myapp
+  gohatch --var Author="Your Name" user/template github.com/me/myapp
   gohatch --dry-run user/template github.com/me/myapp`,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
@@ -54,6 +63,12 @@ Examples:
 				Aliases:     []string{"e"},
 				Usage:       "additional file extensions for module replacement (e.g., -e toml -e sh)",
 				Destination: &extensions,
+			},
+			&cli.StringSliceFlag{
+				Name:        "var",
+				Aliases:     []string{"v"},
+				Usage:       "set template variable (e.g., --var Author=\"Name\")",
+				Destination: &variables,
 			},
 			&cli.BoolFlag{
 				Name:        "dry-run",
@@ -135,8 +150,40 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
+	// Replace template variables
+	vars := parseVariables(variables, path.Base(directory))
+	if len(vars) > 0 {
+		fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
+		if err := rewrite.Variables(directory, vars, extensions); err != nil {
+			return fmt.Errorf("replacing variables: %w", err)
+		}
+	}
+
 	fmt.Printf("Created %s\n", directory)
 	return nil
+}
+
+// parseVariables converts CLI key=value pairs to a map.
+// Sets ProjectName to defaultProjectName if not overridden.
+func parseVariables(vars []string, defaultProjectName string) map[string]string {
+	result := map[string]string{
+		"ProjectName": defaultProjectName,
+	}
+	for _, v := range vars {
+		if key, value, ok := strings.Cut(v, "="); ok {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+// formatVariables formats variables for display.
+func formatVariables(vars map[string]string) string {
+	parts := make([]string, 0, len(vars))
+	for k, v := range vars {
+		parts = append(parts, k+"="+v)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func runDryRun(src source.Source) error {
@@ -163,11 +210,16 @@ func runDryRun(src source.Source) error {
 		fmt.Printf("Extensions: %v\n", extensions)
 	}
 
+	// Show variables
+	vars := parseVariables(variables, path.Base(directory))
+	fmt.Printf("Variables: %s\n", formatVariables(vars))
+
 	fmt.Println()
 	fmt.Println("Would fetch template and rewrite module path in all .go files.")
 	if len(extensions) > 0 {
 		fmt.Println("Would also replace module path in files with specified extensions.")
 	}
+	fmt.Println("Would replace template variables (__Key__ → Value).")
 
 	return nil
 }
