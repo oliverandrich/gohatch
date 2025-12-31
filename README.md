@@ -74,7 +74,7 @@ gohatch [options] <source> <module> [directory]
 
 | Flag | Description |
 |------|-------------|
-| `-e, --extension` | Additional file extensions for module replacement |
+| `-e, --extension` | Additional file extensions or filenames for module replacement |
 | `-v, --var` | Set template variable (e.g., `--var Author="Name"`) |
 | `-f, --force` | Proceed even if template has no go.mod |
 | `--no-git-init` | Skip git repository initialization |
@@ -125,6 +125,12 @@ Also replace module path in config files:
 
 ```bash
 gohatch -e toml -e yaml user/go-template github.com/me/myapp
+```
+
+Replace in specific files (by exact name):
+
+```bash
+gohatch -e yml -e justfile -e Makefile user/go-template github.com/me/myapp
 ```
 
 Use a local template:
@@ -189,7 +195,11 @@ const AppName = "myapp"
 const Author = "Oliver"
 ```
 
-Variables are replaced in `.go` files and any additional extensions specified with `-e`.
+Variables are replaced in `.go` files and any additional extensions or filenames specified with `-e`.
+
+Each `-e` pattern is treated as both a potential filename and extension:
+- `yml` matches files named `yml` AND files with `.yml` extension
+- `justfile` matches files named `justfile` AND files with `.justfile` extension
 
 ### Path Renaming
 

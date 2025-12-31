@@ -157,18 +157,13 @@ func rewriteGoFile(filePath, oldModule, newModule string) (bool, error) {
 	return true, os.WriteFile(cleanPath, buf.Bytes(), info.Mode())
 }
 
-// rewriteExtraFiles walks through files with specified extensions
+// rewriteExtraFiles walks through files with specified extensions or filenames
 // and performs simple string replacement.
 // Returns the list of modified files.
-func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) ([]string, error) {
+func rewriteExtraFiles(dir, oldModule, newModule string, patterns []string) ([]string, error) {
 	var modifiedFiles []string
 
-	// Normalize extensions (ensure they start with a dot)
-	extSet := make(map[string]bool)
-	for _, ext := range extensions {
-		ext = strings.TrimPrefix(ext, ".")
-		extSet["."+ext] = true
-	}
+	patternSet := parseFilePatterns(patterns)
 
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -183,9 +178,8 @@ func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) ([
 			return nil
 		}
 
-		// Check if file extension matches
-		ext := filepath.Ext(path)
-		if !extSet[ext] {
+		// Check if file matches by extension or name
+		if !matchesFilePattern(d.Name(), patternSet) {
 			return nil
 		}
 
@@ -201,6 +195,35 @@ func rewriteExtraFiles(dir, oldModule, newModule string, extensions []string) ([
 	})
 
 	return modifiedFiles, err
+}
+
+// parseFilePatterns normalizes patterns by removing leading dots.
+// Each pattern is treated as both a potential filename and extension.
+func parseFilePatterns(patterns []string) map[string]bool {
+	result := make(map[string]bool)
+	for _, p := range patterns {
+		p = strings.TrimPrefix(p, ".")
+		if p != "" {
+			result[p] = true
+		}
+	}
+	return result
+}
+
+// matchesFilePattern checks if a filename matches any pattern.
+// A pattern matches if the filename equals it exactly, or if the
+// file's extension (without leading dot) equals the pattern.
+func matchesFilePattern(name string, patterns map[string]bool) bool {
+	// Check exact filename match
+	if patterns[name] {
+		return true
+	}
+	// Check extension match (without leading dot)
+	ext := filepath.Ext(name)
+	if ext != "" {
+		return patterns[strings.TrimPrefix(ext, ".")]
+	}
+	return false
 }
 
 // rewriteTextFile performs simple string replacement in a text file.
@@ -253,20 +276,16 @@ func HasGoMod(dir string) bool {
 // Variables replaces template variables in all files.
 // Variables use dunder-style syntax: __VariableName__ → value.
 // Returns the list of modified files.
-func Variables(dir string, vars map[string]string, extraExtensions []string) ([]string, error) {
+func Variables(dir string, vars map[string]string, extraPatterns []string) ([]string, error) {
 	if len(vars) == 0 {
 		return nil, nil
 	}
 
 	var modifiedFiles []string
 
-	// Build extension set: .go + extra extensions
-	extSet := make(map[string]bool)
-	extSet[".go"] = true
-	for _, ext := range extraExtensions {
-		ext = strings.TrimPrefix(ext, ".")
-		extSet["."+ext] = true
-	}
+	// Build pattern set: go + extra patterns
+	patternSet := parseFilePatterns(extraPatterns)
+	patternSet["go"] = true
 
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -281,9 +300,8 @@ func Variables(dir string, vars map[string]string, extraExtensions []string) ([]
 			return nil
 		}
 
-		// Check if file extension matches
-		ext := filepath.Ext(path)
-		if !extSet[ext] {
+		// Check if file matches by extension or name
+		if !matchesFilePattern(d.Name(), patternSet) {
 			return nil
 		}
 

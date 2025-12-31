@@ -620,3 +620,177 @@ func TestRenamePaths_DirectoryAndFileWithSameVar(t *testing.T) {
 		t.Errorf("final file should exist at %s", finalPath)
 	}
 }
+
+func TestParseFilePatterns(t *testing.T) {
+	tests := []struct {
+		want     map[string]bool
+		name     string
+		patterns []string
+	}{
+		{
+			name:     "simple patterns",
+			patterns: []string{"yml", "md", "toml"},
+			want:     map[string]bool{"yml": true, "md": true, "toml": true},
+		},
+		{
+			name:     "patterns with dot prefix are normalized",
+			patterns: []string{".yml", ".md"},
+			want:     map[string]bool{"yml": true, "md": true},
+		},
+		{
+			name:     "filename patterns",
+			patterns: []string{"justfile", "Makefile", "Dockerfile"},
+			want:     map[string]bool{"justfile": true, "Makefile": true, "Dockerfile": true},
+		},
+		{
+			name:     "mixed patterns",
+			patterns: []string{"yml", "justfile", "Makefile", ".toml"},
+			want:     map[string]bool{"yml": true, "justfile": true, "Makefile": true, "toml": true},
+		},
+		{
+			name:     "empty patterns",
+			patterns: []string{},
+			want:     map[string]bool{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseFilePatterns(tt.patterns)
+
+			if len(got) != len(tt.want) {
+				t.Errorf("length = %d, want %d", len(got), len(tt.want))
+			}
+			for k := range tt.want {
+				if !got[k] {
+					t.Errorf("missing %q", k)
+				}
+			}
+		})
+	}
+}
+
+func TestMatchesFilePattern(t *testing.T) {
+	// Each pattern matches both as filename and as extension
+	patterns := map[string]bool{"yml": true, "yaml": true, "justfile": true, "Makefile": true}
+
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"matches yml extension", "config.yml", true},
+		{"matches yaml extension", "app.yaml", true},
+		{"matches justfile as filename", "justfile", true},
+		{"matches Makefile as filename", "Makefile", true},
+		{"matches yml as filename", "yml", true},
+		{"matches justfile as extension", "foo.justfile", true},
+		{"no match go file", "main.go", false},
+		{"no match random file", "readme.txt", false},
+		{"no match similar name", "justfiles", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesFilePattern(tt.input, patterns)
+			if got != tt.want {
+				t.Errorf("matchesFilePattern(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestModuleWithFilenamePattern(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create go.mod
+	goMod := `module github.com/old/module
+
+go 1.21
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a justfile with module reference
+	justfile := `# github.com/old/module
+build:
+	go build ./cmd/github.com/old/module
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "justfile"), []byte(justfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run Module rewrite with filename pattern
+	_, err := Module(tmpDir, "github.com/new/project", []string{"justfile"})
+	if err != nil {
+		t.Fatalf("Module() error = %v", err)
+	}
+
+	// Verify justfile was updated
+	data, err := os.ReadFile(filepath.Join(tmpDir, "justfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "github.com/new/project") {
+		t.Errorf("justfile not updated, got: %s", string(data))
+	}
+	if strings.Contains(string(data), "github.com/old/module") {
+		t.Errorf("justfile still contains old module, got: %s", string(data))
+	}
+}
+
+func TestVariablesWithFilenamePattern(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a justfile with variables
+	justfile := `# __ProjectName__ Task Runner
+build:
+	go build -o __ProjectName__ ./cmd/__ProjectName__
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "justfile"), []byte(justfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a Makefile with variables
+	makefile := `.PHONY: build
+build:
+	go build -o __ProjectName__ ./cmd/__ProjectName__
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte(makefile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]string{
+		"ProjectName": "myapp",
+	}
+
+	_, err := Variables(tmpDir, vars, []string{"justfile", "Makefile"})
+	if err != nil {
+		t.Fatalf("Variables() error = %v", err)
+	}
+
+	// Check justfile
+	data, err := os.ReadFile(filepath.Join(tmpDir, "justfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "__ProjectName__") {
+		t.Errorf("justfile: ProjectName not replaced, got: %s", data)
+	}
+	if !strings.Contains(string(data), "myapp") {
+		t.Errorf("justfile: expected myapp, got: %s", data)
+	}
+
+	// Check Makefile
+	data, err = os.ReadFile(filepath.Join(tmpDir, "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "__ProjectName__") {
+		t.Errorf("Makefile: ProjectName not replaced, got: %s", data)
+	}
+	if !strings.Contains(string(data), "myapp") {
+		t.Errorf("Makefile: expected myapp, got: %s", data)
+	}
+}

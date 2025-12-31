@@ -62,7 +62,7 @@ Examples:
   gohatch github.com/user/template@v1.0.0 github.com/me/myapp
   gohatch user/template@main github.com/me/myapp
   gohatch ./local-template github.com/me/myapp customdir
-  gohatch -e toml -e sh user/template github.com/me/myapp
+  gohatch -e toml -e justfile user/template github.com/me/myapp
   gohatch --var Author="Your Name" user/template github.com/me/myapp
   gohatch --dry-run user/template github.com/me/myapp
   gohatch --force user/non-go-template github.com/me/myapp`,
@@ -70,7 +70,7 @@ Examples:
 			&cli.StringSliceFlag{
 				Name:        "extension",
 				Aliases:     []string{"e"},
-				Usage:       "additional file extensions for module replacement (e.g., -e toml -e sh)",
+				Usage:       "additional file extensions or filenames for replacement (e.g., -e toml -e justfile)",
 				Destination: &extensions,
 			},
 			&cli.StringSliceFlag{
