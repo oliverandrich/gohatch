@@ -1,11 +1,11 @@
 ---
 # gohatch-a7hy
 title: Template validation
-status: draft
+status: completed
 type: feature
 priority: low
 created_at: 2025-12-31T14:40:04Z
-updated_at: 2025-12-31T14:40:04Z
+updated_at: 2025-12-31T15:39:39Z
 ---
 
 Validate that the source is a valid Go project (contains go.mod) before proceeding with the full clone.
@@ -23,8 +23,8 @@ If a user accidentally points to a non-Go repository, gohatch will clone it and 
 
 ## Checklist
 
-- [ ] Add validation check after fetching source
-- [ ] Provide clear error message if go.mod is missing
-- [ ] Consider adding `--force` flag to skip validation
-- [ ] Add tests for validation scenarios
-- [ ] Update CLI help text if --force is added
+- [x] Add validation check after fetching source
+- [x] Provide clear error message if go.mod is missing
+- [x] Add `--force` / `-f` flag to skip validation
+- [x] Add tests for validation scenarios
+- [x] Update CLI help text and README
