@@ -12,7 +12,7 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 
 ## Requirements
 
-- Go 1.25 or later (for building from source or `go install`)
+- Go 1.24 or later (for building from source or `go install`)
 - Git (for cloning remote templates)
 
 ## Installation
