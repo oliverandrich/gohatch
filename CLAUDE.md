@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 gohatch is a project scaffolding tool for Go, similar to gonew but with additional features.
 
-- Module: `github.com/oliverandrich/gohatch`
+- Module: `codeberg.org/oliverandrich/gohatch`
 - License: EUPL-1.2
 
 ## Project Structure

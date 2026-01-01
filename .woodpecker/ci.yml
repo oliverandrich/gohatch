@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (c) 2025 Oliver Andrich
+
+steps:
+  - name: test
+    image: golang:1.24
+    commands:
+      - go test -v -race ./...
+
+  - name: lint
+    image: golangci/golangci-lint:latest
+    commands:
+      - golangci-lint run
+
+when:
+  branch: main
+  event: [push, pull_request]

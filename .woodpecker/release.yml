@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (c) 2025 Oliver Andrich
+
+steps:
+  - name: test
+    image: golang:1.24
+    commands:
+      - go test -race ./...
+
+  - name: release
+    image: goreleaser/goreleaser:latest
+    commands:
+      - goreleaser release --clean
+    secrets: [gitea_token, codeberg_ssh_key]
+
+when:
+  event: tag
