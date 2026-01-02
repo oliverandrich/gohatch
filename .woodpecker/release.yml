@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Oliver Andrich
 
 when:
-  event: tag
+  - event: tag
 
 steps:
   - name: test

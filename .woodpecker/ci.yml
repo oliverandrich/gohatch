@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Oliver Andrich
 
 when:
-  event: [push, pull_request]
+  - event: [push, pull_request]
 
 steps:
   - name: test
