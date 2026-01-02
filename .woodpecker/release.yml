@@ -11,7 +11,11 @@ steps:
     image: goreleaser/goreleaser:latest
     commands:
       - goreleaser release --clean
-    secrets: [gitea_token, codeberg_ssh_key]
+    environment:
+      GITEA_TOKEN:
+        from_secret: gitea_token
+      CODEBERG_SSH_KEY:
+        from_secret: codeberg_ssh_key
 
 when:
   event: tag
