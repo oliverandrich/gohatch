@@ -7,11 +7,17 @@ when:
 steps:
   - name: test
     image: golang:1.24
+    volumes:
+      - /docker/woodpecker/cache/go-mod:/go/pkg/mod
+      - /docker/woodpecker/cache/go-build:/root/.cache/go-build
     commands:
       - go test -race ./...
 
   - name: release
     image: goreleaser/goreleaser:latest
+    volumes:
+      - /docker/woodpecker/cache/go-mod:/go/pkg/mod
+      - /docker/woodpecker/cache/go-build:/root/.cache/go-build
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token

@@ -2,16 +2,22 @@
 # Copyright (c) 2025 Oliver Andrich
 
 when:
-  branch: main
   event: [push, pull_request]
 
 steps:
   - name: test
     image: golang:1.24
+    volumes:
+      - /docker/woodpecker/cache/go-mod:/go/pkg/mod
+      - /docker/woodpecker/cache/go-build:/root/.cache/go-build
     commands:
+      - go build ./...
       - go test -v -race ./...
 
   - name: lint
     image: golangci/golangci-lint:latest
+    volumes:
+      - /docker/woodpecker/cache/go-mod:/go/pkg/mod
+      - /docker/woodpecker/cache/golangci-lint:/root/.cache/golangci-lint
     commands:
       - golangci-lint run
