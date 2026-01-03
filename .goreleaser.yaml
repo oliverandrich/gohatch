@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (c) 2025 Oliver Andrich
+
+version: 2
+project_name: gohatch
+
+builds:
+  - main: ./cmd/gohatch
+    binary: gohatch
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+      - goos: darwin
+        formats:
+          - zip
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  gitea:
+    owner: oliverandrich
+    name: gohatch
+  draft: false
+  prerelease: auto
+
+gitea_urls:
+  api: https://codeberg.org/api/v1
+  download: https://codeberg.org
