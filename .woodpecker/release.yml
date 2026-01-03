@@ -24,5 +24,6 @@ steps:
       CODEBERG_SSH_KEY:
         from_secret: codeberg_ssh_key
       GORELEASER_FORCE_TOKEN: gitea
+      GOMAXPROCS: 2
     commands:
       - goreleaser release --clean
