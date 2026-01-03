@@ -60,6 +60,8 @@ homebrew_casks:
       - gohatch
     directory: Casks
     repository:
+      owner: oliverandrich
+      name: homebrew-tap
       git:
         url: "ssh://git@codeberg.org/oliverandrich/homebrew-tap.git"
         private_key: "{{ .Env.CODEBERG_SSH_KEY }}"
