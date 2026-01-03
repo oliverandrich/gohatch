@@ -18,7 +18,8 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
+      - -X main.Version={{.Version}}
+      - -X main.BuildTime={{.Date}}
 
 archives:
   - name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
@@ -33,21 +34,21 @@ archives:
           - zip
 
 checksum:
-  name_template: checksums.txt
+  name_template: 'checksums.txt'
   algorithm: sha256
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
   groups:
     - title: Features
-      regexp: "^feat"
+      regexp: '^feat'
     - title: Bug Fixes
-      regexp: "^fix"
+      regexp: '^fix'
     - title: Others
       order: 999
 
@@ -78,3 +79,7 @@ release:
     name: gohatch
   draft: false
   prerelease: auto
+
+gitea_urls:
+  api: https://codeberg.org/api/v1
+  download: https://codeberg.org
