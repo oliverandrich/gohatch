@@ -20,7 +20,7 @@ steps:
       - /docker/woodpecker/cache/go-build:/root/.cache/go-build
     environment:
       GITEA_TOKEN:
-        from_secret: gitea_token
+        from_secret: release_token
       CODEBERG_SSH_KEY:
         from_secret: codeberg_ssh_key
       GORELEASER_FORCE_TOKEN: gitea
