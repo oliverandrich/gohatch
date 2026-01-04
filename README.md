@@ -58,34 +58,34 @@ gohatch [options] <source> <module> [directory]
 
 ### Arguments
 
-| Argument | Description |
-|----------|-------------|
-| `source` | Template source (see formats below) |
-| `module` | New Go module path |
+| Argument    | Description                                                     |
+| ----------- | --------------------------------------------------------------- |
+| `source`    | Template source (see formats below)                             |
+| `module`    | New Go module path                                              |
 | `directory` | Output directory (optional, defaults to last element of module) |
 
 ### Options
 
-| Flag | Description |
-|------|-------------|
+| Flag              | Description                                                    |
+| ----------------- | -------------------------------------------------------------- |
 | `-e, --extension` | Additional file extensions or filenames for module replacement |
-| `-v, --var` | Set template variable (e.g., `--var Author="Name"`) |
-| `-f, --force` | Proceed even if template has no go.mod |
-| `--no-git-init` | Skip git repository initialization |
-| `--dry-run` | Show what would be done without making any changes |
-| `--verbose` | Show detailed progress output |
+| `-v, --var`       | Set template variable (e.g., `--var Author="Name"`)            |
+| `-f, --force`     | Proceed even if template has no go.mod                         |
+| `--no-git-init`   | Skip git repository initialization                             |
+| `--dry-run`       | Show what would be done without making any changes             |
+| `--verbose`       | Show detailed progress output                                  |
 
 ### Source Formats
 
-| Format | Example |
-|--------|---------|
-| GitHub shorthand | `user/repo` |
-| Full URL | `github.com/user/repo` |
-| Other Git hosts | `codeberg.org/user/repo` |
-| Specific tag | `user/repo@v1.0.0` |
-| Specific branch | `user/repo@main` |
-| Specific commit | `user/repo@abc1234` |
-| Local directory | `./my-template` |
+| Format           | Example                  |
+| ---------------- | ------------------------ |
+| GitHub shorthand | `user/repo`              |
+| Full URL         | `github.com/user/repo`   |
+| Other Git hosts  | `codeberg.org/user/repo` |
+| Specific tag     | `user/repo@v1.0.0`       |
+| Specific branch  | `user/repo@main`         |
+| Specific commit  | `user/repo@abc1234`      |
+| Local directory  | `./my-template`          |
 
 **Note:** gohatch automatically detects whether the version is a tag, branch, or commit hash by querying the remote repository.
 
@@ -151,8 +151,8 @@ Templates can include placeholders that get replaced during scaffolding. Placeho
 
 ### Default Variables
 
-| Variable | Default Value |
-|----------|---------------|
+| Variable      | Default Value         |
+| ------------- | --------------------- |
 | `ProjectName` | Output directory name |
 
 ### Setting Variables

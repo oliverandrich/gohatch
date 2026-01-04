@@ -546,7 +546,7 @@ func TestGitSourceFetch_InvalidURL(t *testing.T) {
 	gs := &GitSource{URL: "file:///nonexistent/repo"}
 	err := gs.Fetch(context.Background(), destDir)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cloning repository")
 }
 

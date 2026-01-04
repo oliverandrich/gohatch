@@ -4,6 +4,9 @@
 version: 2
 project_name: gohatch
 
+env_files:
+  gitea_token: ~/.config/goreleaser/gitea_token
+
 builds:
   - main: ./cmd/gohatch
     binary: gohatch
@@ -63,7 +66,6 @@ homebrew_casks:
       name: homebrew-tap
       git:
         url: "ssh://git@codeberg.org/oliverandrich/homebrew-tap.git"
-        private_key: "{{ .Env.CODEBERG_SSH_KEY }}"
     commit_author:
       name: Oliver Andrich
       email: oliver@andrich.me

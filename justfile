@@ -36,3 +36,11 @@ clean:
 # Install binary to $GOPATH/bin
 install:
     go install -ldflags="-s -w -X 'main.version={{version}}'" ./cmd/gohatch
+
+# Release mit goreleaser erstellen
+release:
+    goreleaser release --clean
+
+# Lokaler Test-Build ohne Release (Snapshot)
+release-snapshot:
+    goreleaser release --snapshot --clean

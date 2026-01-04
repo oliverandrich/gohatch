@@ -32,7 +32,7 @@ func TestValidateDirectory_NotEmpty(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0o644))
 
 	err := validateDirectory(dir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not empty")
 }
 
@@ -41,7 +41,7 @@ func TestValidateDirectory_IsFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, []byte("content"), 0o644))
 
 	err := validateDirectory(file)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a directory")
 }
 

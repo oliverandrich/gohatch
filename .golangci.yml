@@ -1,15 +1,20 @@
 version: "2"
 linters:
   enable:
+    - dupl
+    - errcheck
     - errorlint
-    - gocyclo
     - exhaustive
+    - gocyclo
     - gosec
+    - govet
     - misspell
+    - modernize
     - nilerr
     - noctx
     - prealloc
     - revive
+    - testifylint
     - unparam
   settings:
     gocyclo:
