@@ -207,6 +207,20 @@ __ProjectName___test.go      →   myapp_test.go
 
 This allows you to create templates where the directory structure adapts to the project name.
 
+## Development
+
+```bash
+just build            # Build binary to build/gohatch
+just test             # Run tests
+just fmt              # Format code
+just lint             # Run linter
+just check            # Run fmt, lint, and test
+just clean            # Remove build artifacts
+just install          # Install to $GOPATH/bin
+just release          # Create release with goreleaser
+just release-snapshot # Local test build without publishing
+```
+
 ## License
 
 This project is licensed under the [European Union Public License 1.2](https://eupl.eu/) (EUPL-1.2).
