@@ -12,3 +12,7 @@ coverage.out
 # IDE
 .idea/
 *.swp
+
+# Claude Code
+CLAUDE.md
+AGENTS.md
