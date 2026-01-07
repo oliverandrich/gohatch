@@ -64,7 +64,6 @@ homebrew_casks:
     repository:
       owner: oliverandrich
       name: homebrew-tap
-      token: "{{ .Env.gitea_token }}"
     commit_author:
       name: Oliver Andrich
       email: oliver@andrich.me
