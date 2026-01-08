@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	gohatchcfg "codeberg.org/oliverandrich/gohatch/internal/config"
 	"codeberg.org/oliverandrich/gohatch/internal/rewrite"
 	"codeberg.org/oliverandrich/gohatch/internal/source"
 	"github.com/go-git/go-git/v5"
@@ -32,6 +33,7 @@ var (
 	dryRun     bool
 	force      bool
 	noGitInit  bool
+	keepConfig bool
 	verbose    bool
 )
 
@@ -95,6 +97,11 @@ Examples:
 				Name:        "no-git-init",
 				Usage:       "skip git repository initialization",
 				Destination: &noGitInit,
+			},
+			&cli.BoolFlag{
+				Name:        "keep-config",
+				Usage:       "keep .gohatch.toml config file in output",
+				Destination: &keepConfig,
 			},
 			&cli.BoolFlag{
 				Name:        "verbose",
@@ -162,6 +169,21 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
+	// Load template config
+	cfg, err := gohatchcfg.Load(directory)
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+	if gohatchcfg.Exists(directory) {
+		verboseLog("Found %s", gohatchcfg.ConfigFile)
+	}
+
+	// Merge CLI extensions with config extensions
+	mergedExtensions := mergeExtensions(extensions, cfg.Extensions)
+	if len(mergedExtensions) > 0 {
+		verboseLog("Extensions: %v", mergedExtensions)
+	}
+
 	if err := validateGoMod(); err != nil {
 		return err
 	}
@@ -172,12 +194,20 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	if err := rewriteModule(); err != nil {
+	if err := rewriteModule(mergedExtensions); err != nil {
 		return err
 	}
 
-	if err := replaceVariables(vars); err != nil {
+	if err := replaceVariables(vars, mergedExtensions); err != nil {
 		return err
+	}
+
+	// Remove config file unless --keep-config is set
+	if gohatchcfg.Exists(directory) && !keepConfig {
+		if err := gohatchcfg.Remove(directory); err != nil {
+			return fmt.Errorf("removing config: %w", err)
+		}
+		verboseLog("Removed %s", gohatchcfg.ConfigFile)
 	}
 
 	if !noGitInit {
@@ -238,7 +268,7 @@ func renamePaths(vars map[string]string) error {
 	return nil
 }
 
-func rewriteModule() error {
+func rewriteModule(exts []string) error {
 	if !rewrite.HasGoMod(directory) {
 		return nil
 	}
@@ -254,7 +284,7 @@ func rewriteModule() error {
 	}
 
 	fmt.Printf("Rewriting module %s → %s\n", oldModule, module)
-	modifiedFiles, err := rewrite.Module(directory, module, extensions)
+	modifiedFiles, err := rewrite.Module(directory, module, exts)
 	if err != nil {
 		return fmt.Errorf("rewriting module: %w", err)
 	}
@@ -266,13 +296,13 @@ func rewriteModule() error {
 	return nil
 }
 
-func replaceVariables(vars map[string]string) error {
+func replaceVariables(vars map[string]string, exts []string) error {
 	if len(vars) == 0 {
 		return nil
 	}
 
 	fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
-	modifiedFiles, err := rewrite.Variables(directory, vars, extensions)
+	modifiedFiles, err := rewrite.Variables(directory, vars, exts)
 	if err != nil {
 		return fmt.Errorf("replacing variables: %w", err)
 	}
@@ -307,6 +337,31 @@ func formatVariables(vars map[string]string) string {
 	return strings.Join(parts, ", ")
 }
 
+// mergeExtensions combines CLI extensions with config extensions.
+// CLI extensions are added to config extensions (union).
+func mergeExtensions(cli, config []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(cli)+len(config))
+
+	// Config extensions first
+	for _, ext := range config {
+		if !seen[ext] {
+			seen[ext] = true
+			result = append(result, ext)
+		}
+	}
+
+	// CLI extensions added (if not already present)
+	for _, ext := range cli {
+		if !seen[ext] {
+			seen[ext] = true
+			result = append(result, ext)
+		}
+	}
+
+	return result
+}
+
 // verboseLog prints a message only if verbose mode is enabled.
 func verboseLog(format string, args ...any) {
 	if verbose {
@@ -335,7 +390,7 @@ func runDryRun(src source.Source) error {
 
 	// Show extensions if any
 	if len(extensions) > 0 {
-		fmt.Printf("Extensions: %v\n", extensions)
+		fmt.Printf("CLI Extensions: %v\n", extensions)
 	}
 
 	// Show variables
@@ -352,12 +407,21 @@ func runDryRun(src source.Source) error {
 		fmt.Println("Git:       --no-git-init (skip initialization)")
 	}
 
+	// Show keep-config flag
+	if keepConfig {
+		fmt.Println("Config:    --keep-config (keep .gohatch.toml)")
+	}
+
 	fmt.Println()
 	fmt.Println("Would fetch template and rewrite module path in all .go files.")
+	fmt.Println("Would read .gohatch.toml from template (if present) for additional extensions.")
 	if len(extensions) > 0 {
 		fmt.Println("Would also replace module path in files with specified extensions.")
 	}
 	fmt.Println("Would replace template variables (__Key__ → Value).")
+	if !keepConfig {
+		fmt.Println("Would remove .gohatch.toml from output (use --keep-config to keep).")
+	}
 	if !noGitInit {
 		fmt.Println("Would initialize git repository with initial commit.")
 	}

@@ -72,6 +72,7 @@ gohatch [options] <source> <module> [directory]
 | `-v, --var`       | Set template variable (e.g., `--var Author="Name"`)            |
 | `-f, --force`     | Proceed even if template has no go.mod                         |
 | `--no-git-init`   | Skip git repository initialization                             |
+| `--keep-config`   | Keep `.gohatch.toml` config file in output                     |
 | `--dry-run`       | Show what would be done without making any changes             |
 | `--verbose`       | Show detailed progress output                                  |
 
@@ -206,6 +207,48 @@ __ProjectName___test.go      →   myapp_test.go
 ```
 
 This allows you to create templates where the directory structure adapts to the project name.
+
+## Template Configuration
+
+Templates can include a `.gohatch.toml` configuration file to specify default settings. This eliminates the need to pass `-e` flags manually when using the template.
+
+### Configuration File
+
+Create a `.gohatch.toml` file in your template root:
+
+```toml
+# Optional: schema version (defaults to 1)
+version = 1
+
+# File extensions/names for module path and variable replacement
+extensions = ["toml", "yaml", "justfile", "Makefile"]
+```
+
+### Behavior
+
+- The config file is automatically read after fetching the template
+- Extensions from the config are merged with any `-e` flags passed on the command line
+- The `.gohatch.toml` file is automatically removed from the output (use `--keep-config` to retain it)
+
+### Example
+
+Template with `.gohatch.toml`:
+
+```toml
+extensions = ["toml", "yaml", "justfile"]
+```
+
+Now users can simply run:
+
+```bash
+gohatch user/template github.com/me/myapp
+```
+
+Instead of:
+
+```bash
+gohatch -e toml -e yaml -e justfile user/template github.com/me/myapp
+```
 
 ## Development
 

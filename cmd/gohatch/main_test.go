@@ -132,7 +132,7 @@ func TestRunDryRun_WithExtensions(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	assert.Contains(t, output, "Extensions: [toml yaml]")
+	assert.Contains(t, output, "CLI Extensions: [toml yaml]")
 	assert.Contains(t, output, "files with specified extensions")
 }
 
@@ -295,4 +295,79 @@ func TestVerboseLog_Disabled(t *testing.T) {
 	})
 
 	assert.Empty(t, output)
+}
+
+func TestMergeExtensions_Empty(t *testing.T) {
+	result := mergeExtensions(nil, nil)
+	assert.Empty(t, result)
+}
+
+func TestMergeExtensions_CLIOnly(t *testing.T) {
+	result := mergeExtensions([]string{"toml", "yaml"}, nil)
+	assert.Equal(t, []string{"toml", "yaml"}, result)
+}
+
+func TestMergeExtensions_ConfigOnly(t *testing.T) {
+	result := mergeExtensions(nil, []string{"toml", "yaml"})
+	assert.Equal(t, []string{"toml", "yaml"}, result)
+}
+
+func TestMergeExtensions_Both(t *testing.T) {
+	result := mergeExtensions([]string{"md", "txt"}, []string{"toml", "yaml"})
+	// Config extensions first, then CLI extensions
+	assert.Equal(t, []string{"toml", "yaml", "md", "txt"}, result)
+}
+
+func TestMergeExtensions_Deduplication(t *testing.T) {
+	result := mergeExtensions([]string{"toml", "yaml"}, []string{"toml", "md"})
+	// toml should only appear once (from config)
+	assert.Equal(t, []string{"toml", "md", "yaml"}, result)
+}
+
+func TestRunDryRun_WithKeepConfig(t *testing.T) {
+	oldDir, oldMod, oldExt, oldKeepConfig := directory, module, extensions, keepConfig
+	defer func() {
+		directory, module, extensions, keepConfig = oldDir, oldMod, oldExt, oldKeepConfig
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	keepConfig = true
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "--keep-config")
+	assert.NotContains(t, output, "Would remove .gohatch.toml")
+}
+
+func TestRunDryRun_ConfigRemovalMessage(t *testing.T) {
+	oldDir, oldMod, oldExt, oldKeepConfig := directory, module, extensions, keepConfig
+	defer func() {
+		directory, module, extensions, keepConfig = oldDir, oldMod, oldExt, oldKeepConfig
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	keepConfig = false
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Would remove .gohatch.toml")
+	assert.Contains(t, output, "Would read .gohatch.toml")
 }

@@ -3,6 +3,7 @@ module codeberg.org/oliverandrich/gohatch
 go 1.24.0
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.6.1
