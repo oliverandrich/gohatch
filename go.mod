@@ -1,4 +1,4 @@
-module codeberg.org/oliverandrich/gohatch
+module github.com/oliverandrich/gohatch
 
 go 1.24.0
 

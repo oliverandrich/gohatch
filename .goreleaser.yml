@@ -5,7 +5,7 @@ version: 2
 project_name: gohatch
 
 env_files:
-  gitea_token: ~/.config/goreleaser/gitea_token
+  github_token: ~/.config/goreleaser/github_token
 
 builds:
   - main: ./cmd/gohatch
@@ -56,7 +56,7 @@ changelog:
 
 homebrew_casks:
   - name: gohatch
-    homepage: https://codeberg.org/oliverandrich/gohatch
+    homepage: https://github.com/oliverandrich/gohatch
     description: A project scaffolding tool for Go
     binaries:
       - gohatch
@@ -75,12 +75,8 @@ homebrew_casks:
           end
 
 release:
-  gitea:
+  github:
     owner: oliverandrich
     name: gohatch
   draft: false
   prerelease: auto
-
-gitea_urls:
-  api: https://codeberg.org/api/v1
-  download: https://codeberg.org

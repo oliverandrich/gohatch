@@ -22,24 +22,24 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew tap oliverandrich/tap https://codeberg.org/oliverandrich/homebrew-tap.git
+brew tap oliverandrich/tap
 brew install gohatch
 ```
 
 ### Go Install
 
 ```bash
-go install codeberg.org/oliverandrich/gohatch@latest
+go install github.com/oliverandrich/gohatch@latest
 ```
 
 ### Binary Downloads
 
-Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://codeberg.org/oliverandrich/gohatch/releases) page.
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/oliverandrich/gohatch/releases) page.
 
 ### Build from Source
 
 ```bash
-git clone https://codeberg.org/oliverandrich/gohatch.git
+git clone https://github.com/oliverandrich/gohatch.git
 cd gohatch
 go build -o gohatch ./cmd/gohatch
 ```
