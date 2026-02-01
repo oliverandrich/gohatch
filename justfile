@@ -15,6 +15,11 @@ build:
 test *ARGS:
     go test ./... {{ARGS}}
 
+# Run tests with coverage report
+cover:
+    go test -coverprofile=coverage.out ./...
+    go tool cover -html=coverage.out
+
 # Format code
 fmt:
     go fmt ./...
@@ -37,10 +42,14 @@ clean:
 install:
     go install -ldflags="-s -w -X 'main.version={{version}}'" ./cmd/gohatch
 
-# Release mit goreleaser erstellen
-release:
-    goreleaser release --clean
+# Tidy dependencies
+tidy:
+    go mod tidy
 
-# Lokaler Test-Build ohne Release (Snapshot)
-release-snapshot:
-    goreleaser release --snapshot --clean
+# Cross-compile for all platforms using goreleaser
+release:
+    goreleaser build --clean --snapshot
+
+# Create a full release with archives and checksums
+release-dist:
+    goreleaser release --clean --snapshot --skip=publish

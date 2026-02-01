@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (c) 2025 Oliver Andrich
 
@@ -5,7 +6,7 @@ version: 2
 project_name: gohatch
 
 env_files:
-  github_token: ~/.config/goreleaser/github_token
+  gitea_token: ~/.config/goreleaser/gitea_token
 
 builds:
   - main: ./cmd/gohatch
@@ -37,27 +38,27 @@ archives:
           - zip
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: checksums.txt
   algorithm: sha256
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^chore:'
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
   groups:
     - title: Features
-      regexp: '^feat'
+      regexp: "^feat"
     - title: Bug Fixes
-      regexp: '^fix'
+      regexp: "^fix"
     - title: Others
       order: 999
 
 homebrew_casks:
   - name: gohatch
-    homepage: https://github.com/oliverandrich/gohatch
+    homepage: https://codeberg.org/oliverandrich/gohatch
     description: A project scaffolding tool for Go
     binaries:
       - gohatch
@@ -76,8 +77,11 @@ homebrew_casks:
           end
 
 release:
-  github:
+  gitea:
     owner: oliverandrich
     name: gohatch
-  draft: false
-  prerelease: auto
+  extra_files: []
+
+gitea_urls:
+  api: https://codeberg.org/api/v1/
+  download: https://codeberg.org
