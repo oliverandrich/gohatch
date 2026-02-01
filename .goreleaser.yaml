@@ -80,6 +80,7 @@ release:
   gitea:
     owner: oliverandrich
     name: gohatch
+  prerelease: auto
   extra_files: []
 
 gitea_urls:

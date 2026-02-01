@@ -46,10 +46,6 @@ install:
 tidy:
     go mod tidy
 
-# Build a local snapshot for testing
-release-snapshot *ARGS:
-    goreleaser release --clean --snapshot {{ARGS}}
-
 # Create and publish a release (requires git tag)
 release *ARGS:
     goreleaser release --clean {{ARGS}}
