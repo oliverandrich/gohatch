@@ -391,3 +391,414 @@ func TestRunDryRun_ConfigRemovalMessage(t *testing.T) {
 	assert.Contains(t, output, "Would remove .gohatch.toml")
 	assert.Contains(t, output, "Would read .gohatch.toml")
 }
+
+func TestGetGitAuthor(t *testing.T) {
+	author := getGitAuthor()
+
+	require.NotNil(t, author)
+	assert.NotEmpty(t, author.Name)
+	assert.NotEmpty(t, author.Email)
+	assert.False(t, author.When.IsZero())
+}
+
+func TestInitGitRepo(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a file to commit
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Test"), 0o644))
+
+	output := captureOutput(func() {
+		err := initGitRepo(dir)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Initialized git repository")
+
+	// Verify .git directory exists
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	assert.NoError(t, err)
+}
+
+func TestValidateGoMod_HasGoMod(t *testing.T) {
+	oldDir, oldForce := directory, force
+	defer func() { directory, force = oldDir, oldForce }()
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0o644))
+
+	directory = dir
+	force = false
+
+	err := validateGoMod()
+	assert.NoError(t, err)
+}
+
+func TestValidateGoMod_NoGoMod_NoForce(t *testing.T) {
+	oldDir, oldForce := directory, force
+	defer func() { directory, force = oldDir, oldForce }()
+
+	dir := t.TempDir()
+	directory = dir
+	force = false
+
+	err := validateGoMod()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no go.mod")
+}
+
+func TestValidateGoMod_NoGoMod_WithForce(t *testing.T) {
+	oldDir, oldForce := directory, force
+	defer func() { directory, force = oldDir, oldForce }()
+
+	dir := t.TempDir()
+	directory = dir
+	force = true
+
+	output := captureOutput(func() {
+		err := validateGoMod()
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Warning: template has no go.mod")
+}
+
+func TestRenamePaths_EmptyVars(t *testing.T) {
+	oldDir := directory
+	defer func() { directory = oldDir }()
+
+	directory = t.TempDir()
+
+	err := renamePaths(map[string]string{})
+	assert.NoError(t, err)
+}
+
+func TestRenamePaths_WithVars(t *testing.T) {
+	oldDir, oldVerbose := directory, verbose
+	defer func() { directory, verbose = oldDir, oldVerbose }()
+
+	dir := t.TempDir()
+	directory = dir
+	verbose = false
+
+	// Create a directory with placeholder
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "__ProjectName__"), 0o755))
+
+	output := captureOutput(func() {
+		err := renamePaths(map[string]string{"ProjectName": "myapp"})
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Renaming paths")
+
+	// Check renamed directory exists
+	_, err := os.Stat(filepath.Join(dir, "myapp"))
+	assert.NoError(t, err)
+}
+
+func TestRewriteModule_NoGoMod(t *testing.T) {
+	oldDir := directory
+	defer func() { directory = oldDir }()
+
+	directory = t.TempDir()
+
+	err := rewriteModule(nil)
+	assert.NoError(t, err)
+}
+
+func TestRewriteModule_SameModule(t *testing.T) {
+	oldDir, oldMod := directory, module
+	defer func() { directory, module = oldDir, oldMod }()
+
+	dir := t.TempDir()
+	directory = dir
+	module = "github.com/user/test"
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/user/test\n\ngo 1.21\n"), 0o644))
+
+	err := rewriteModule(nil)
+	assert.NoError(t, err)
+}
+
+func TestRewriteModule_DifferentModule(t *testing.T) {
+	oldDir, oldMod, oldVerbose := directory, module, verbose
+	defer func() { directory, module, verbose = oldDir, oldMod, oldVerbose }()
+
+	dir := t.TempDir()
+	directory = dir
+	module = "github.com/me/newapp"
+	verbose = false
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/user/template\n\ngo 1.21\n"), 0o644))
+
+	output := captureOutput(func() {
+		err := rewriteModule(nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Rewriting module")
+	assert.Contains(t, output, "github.com/user/template")
+	assert.Contains(t, output, "github.com/me/newapp")
+}
+
+func TestReplaceVariables_EmptyVars(t *testing.T) {
+	oldDir := directory
+	defer func() { directory = oldDir }()
+
+	directory = t.TempDir()
+
+	err := replaceVariables(map[string]string{}, nil)
+	assert.NoError(t, err)
+}
+
+func TestReplaceVariables_WithVars(t *testing.T) {
+	oldDir, oldVerbose := directory, verbose
+	defer func() { directory, verbose = oldDir, oldVerbose }()
+
+	dir := t.TempDir()
+	directory = dir
+	verbose = false
+
+	// Create a Go file with placeholders
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package __ProjectName__\n"), 0o644))
+
+	output := captureOutput(func() {
+		err := replaceVariables(map[string]string{"ProjectName": "myapp"}, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Replacing variables")
+
+	// Verify replacement
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "package myapp")
+}
+
+func TestFetchTemplate_LocalSource(t *testing.T) {
+	oldDir, oldSrcInput, oldVerbose := directory, srcInput, verbose
+	defer func() { directory, srcInput, verbose = oldDir, oldSrcInput, oldVerbose }()
+
+	// Create a source template directory
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, ".git"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".git", "config"), []byte(""), 0o644))
+
+	// Create destination directory
+	destDir := filepath.Join(t.TempDir(), "dest")
+	directory = destDir
+	srcInput = srcDir
+	verbose = false
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := fetchTemplate(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Fetching template")
+
+	// Verify go.mod was copied
+	_, err := os.Stat(filepath.Join(destDir, "go.mod"))
+	require.NoError(t, err)
+
+	// Verify .git was removed
+	_, err = os.Stat(filepath.Join(destDir, ".git"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestExecuteScaffold_FullWorkflow(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+	}()
+
+	// Create a source template
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\n\nimport \"github.com/template/test/pkg\"\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "pkg"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "pkg", "pkg.go"), []byte("package pkg\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, ".git"), 0o755))
+
+	// Set up globals
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = false
+	keepConfig = false
+	verbose = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Fetching template")
+	assert.Contains(t, output, "Rewriting module")
+	assert.Contains(t, output, "Created")
+
+	// Verify module was rewritten
+	content, err := os.ReadFile(filepath.Join(destDir, "go.mod"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "github.com/me/myapp")
+
+	// Verify git repo was initialized
+	_, err = os.Stat(filepath.Join(destDir, ".git"))
+	assert.NoError(t, err)
+}
+
+func TestExecuteScaffold_WithNoGitInit(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+	}()
+
+	// Create a source template
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	// Verify git repo was NOT initialized
+	_, err := os.Stat(filepath.Join(destDir, ".git"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestExecuteScaffold_DirectoryExists(t *testing.T) {
+	oldDir, oldMod, oldSrcInput := directory, module, srcInput
+	defer func() { directory, module, srcInput = oldDir, oldMod, oldSrcInput }()
+
+	// Create a non-empty directory
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0o644))
+
+	directory = dir
+	module = "github.com/me/myapp"
+	srcInput = "."
+
+	src := &source.LocalSource{Path: "."}
+
+	err := executeScaffold(t.Context(), src)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not empty")
+}
+
+func TestRun_WithDryRun(t *testing.T) {
+	oldSrcInput, oldMod, oldDir, oldDryRun := srcInput, module, directory, dryRun
+	defer func() { srcInput, module, directory, dryRun = oldSrcInput, oldMod, oldDir, oldDryRun }()
+
+	srcInput = "./template"
+	module = "github.com/me/myapp"
+	directory = ""
+	dryRun = true
+
+	output := captureOutput(func() {
+		err := run(t.Context(), nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Dry-run mode")
+}
+
+func TestExecuteScaffold_WithConfigFile(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+	}()
+
+	// Create a source template with config
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("extensions = [\"toml\"]\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Found .gohatch.toml")
+	assert.Contains(t, output, "Removed .gohatch.toml")
+
+	// Verify config was removed
+	_, err := os.Stat(filepath.Join(destDir, ".gohatch.toml"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestExecuteScaffold_KeepConfig(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+	}()
+
+	// Create a source template with config
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("extensions = [\"toml\"]\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = true
+	verbose = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	// Verify config was kept
+	_, err := os.Stat(filepath.Join(destDir, ".gohatch.toml"))
+	assert.NoError(t, err)
+}
