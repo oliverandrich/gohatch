@@ -46,10 +46,10 @@ install:
 tidy:
     go mod tidy
 
-# Cross-compile for all platforms using goreleaser
-release:
-    goreleaser build --clean --snapshot
+# Build a local snapshot for testing
+release-snapshot *ARGS:
+    goreleaser release --clean --snapshot {{ARGS}}
 
-# Create a full release with archives and checksums
-release-dist:
-    goreleaser release --clean --snapshot --skip=publish
+# Create and publish a release (requires git tag)
+release *ARGS:
+    goreleaser release --clean {{ARGS}}
