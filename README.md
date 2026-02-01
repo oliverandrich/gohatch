@@ -1,5 +1,9 @@
 # gohatch
 
+[![Go Version](https://img.shields.io/badge/go-1.24-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-EUPL--1.2-blue?style=for-the-badge)](LICENSE)
+[![Codeberg](https://img.shields.io/badge/codeberg-repo-2185D0?style=for-the-badge&logo=codeberg&logoColor=white)](https://codeberg.org/oliverandrich/gohatch)
+
 A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew) with additional features.
 
 ## Features
