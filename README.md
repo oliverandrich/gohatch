@@ -254,14 +254,22 @@ gohatch -e toml -e yaml -e justfile user/template github.com/me/myapp
 ## Development
 
 ```bash
-just build    # Build binary to build/gohatch
-just test     # Run tests
-just fmt      # Format code
-just lint     # Run linter
-just check    # Run fmt, lint, and test
-just clean    # Remove build artifacts
-just install  # Install to $GOPATH/bin
-just release  # Create and publish release (requires git tag)
+just build        # Build binary to build/gohatch
+just test         # Run tests (requires tparse)
+just cover        # Run tests with coverage (requires tparse)
+just cover-report # Open coverage report in browser
+just fmt          # Format code
+just lint         # Run linter
+just check        # Run fmt, lint, and test
+just clean        # Remove build artifacts
+just install      # Install to $GOPATH/bin
+just release      # Create and publish release (requires git tag)
+```
+
+Install tparse for nicer test output:
+
+```bash
+go install github.com/mfridman/tparse@latest
 ```
 
 ## License
