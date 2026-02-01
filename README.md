@@ -152,9 +152,10 @@ Templates can include placeholders that get replaced during scaffolding. Placeho
 
 ### Default Variables
 
-| Variable      | Default Value         |
-| ------------- | --------------------- |
-| `ProjectName` | Output directory name |
+| Variable      | Default Value                                              |
+| ------------- | ---------------------------------------------------------- |
+| `ProjectName` | Output directory name                                      |
+| `GitUser`     | Second path element of module (e.g., `github.com/user/...` → `user`) |
 
 ### Setting Variables
 
@@ -253,15 +254,14 @@ gohatch -e toml -e yaml -e justfile user/template github.com/me/myapp
 ## Development
 
 ```bash
-just build            # Build binary to build/gohatch
-just test             # Run tests
-just fmt              # Format code
-just lint             # Run linter
-just check            # Run fmt, lint, and test
-just clean            # Remove build artifacts
-just install          # Install to $GOPATH/bin
-just release          # Create release with goreleaser
-just release-snapshot # Local test build without publishing
+just build    # Build binary to build/gohatch
+just test     # Run tests
+just fmt      # Format code
+just lint     # Run linter
+just check    # Run fmt, lint, and test
+just clean    # Remove build artifacts
+just install  # Install to $GOPATH/bin
+just release  # Create and publish release (requires git tag)
 ```
 
 ## License

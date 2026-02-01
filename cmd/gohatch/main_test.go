@@ -137,45 +137,65 @@ func TestRunDryRun_WithExtensions(t *testing.T) {
 }
 
 func TestParseVariables_DefaultProjectName(t *testing.T) {
-	vars := parseVariables(nil, "myapp")
+	vars := parseVariables(nil, "myapp", "github.com/user/myapp")
 
 	assert.Equal(t, "myapp", vars["ProjectName"])
-	assert.Len(t, vars, 1)
+	assert.Equal(t, "user", vars["GitUser"])
+	assert.Len(t, vars, 2)
 }
 
 func TestParseVariables_WithVars(t *testing.T) {
 	input := []string{"Author=Oliver Andrich", "License=MIT"}
-	vars := parseVariables(input, "myapp")
+	vars := parseVariables(input, "myapp", "github.com/user/myapp")
 
 	assert.Equal(t, "myapp", vars["ProjectName"])
+	assert.Equal(t, "user", vars["GitUser"])
 	assert.Equal(t, "Oliver Andrich", vars["Author"])
 	assert.Equal(t, "MIT", vars["License"])
-	assert.Len(t, vars, 3)
+	assert.Len(t, vars, 4)
 }
 
 func TestParseVariables_OverrideProjectName(t *testing.T) {
 	input := []string{"ProjectName=CustomName"}
-	vars := parseVariables(input, "myapp")
+	vars := parseVariables(input, "myapp", "github.com/user/myapp")
 
 	assert.Equal(t, "CustomName", vars["ProjectName"])
-	assert.Len(t, vars, 1)
+	assert.Equal(t, "user", vars["GitUser"])
+	assert.Len(t, vars, 2)
 }
 
 func TestParseVariables_ValueWithEquals(t *testing.T) {
 	// strings.Cut splits only on the first =, so value keeps the rest
 	input := []string{"Equation=a=b+c"}
-	vars := parseVariables(input, "myapp")
+	vars := parseVariables(input, "myapp", "github.com/user/myapp")
 
 	assert.Equal(t, "a=b+c", vars["Equation"])
 }
 
 func TestParseVariables_InvalidEntry(t *testing.T) {
 	input := []string{"NoEqualsSign"}
-	vars := parseVariables(input, "myapp")
+	vars := parseVariables(input, "myapp", "github.com/user/myapp")
 
-	// Should only have default ProjectName
-	assert.Len(t, vars, 1)
+	// Should only have default ProjectName and GitUser
+	assert.Len(t, vars, 2)
 	assert.Equal(t, "myapp", vars["ProjectName"])
+	assert.Equal(t, "user", vars["GitUser"])
+}
+
+func TestParseVariables_OverrideGitUser(t *testing.T) {
+	input := []string{"GitUser=customuser"}
+	vars := parseVariables(input, "myapp", "github.com/user/myapp")
+
+	assert.Equal(t, "customuser", vars["GitUser"])
+}
+
+func TestParseVariables_ShortModulePath(t *testing.T) {
+	// Module path without user (e.g., just "myapp")
+	vars := parseVariables(nil, "myapp", "myapp")
+
+	assert.Equal(t, "myapp", vars["ProjectName"])
+	_, hasGitUser := vars["GitUser"]
+	assert.False(t, hasGitUser, "GitUser should not be set for short module paths")
 }
 
 func TestFormatVariables(t *testing.T) {

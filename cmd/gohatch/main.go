@@ -188,7 +188,7 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	vars := parseVariables(variables, path.Base(directory))
+	vars := parseVariables(variables, path.Base(directory), module)
 
 	if err := renamePaths(vars); err != nil {
 		return err
@@ -315,11 +315,18 @@ func replaceVariables(vars map[string]string, exts []string) error {
 }
 
 // parseVariables converts CLI key=value pairs to a map.
-// Sets ProjectName to defaultProjectName if not overridden.
-func parseVariables(vars []string, defaultProjectName string) map[string]string {
+// Sets ProjectName and GitUser automatically from module path if not overridden.
+func parseVariables(vars []string, defaultProjectName string, modulePath string) map[string]string {
 	result := map[string]string{
 		"ProjectName": defaultProjectName,
 	}
+
+	// Extract GitUser from module path (e.g., github.com/user/repo -> user)
+	if parts := strings.Split(modulePath, "/"); len(parts) >= 2 {
+		result["GitUser"] = parts[1]
+	}
+
+	// Override with CLI variables
 	for _, v := range vars {
 		if key, value, ok := strings.Cut(v, "="); ok {
 			result[key] = value
@@ -394,7 +401,7 @@ func runDryRun(src source.Source) error {
 	}
 
 	// Show variables
-	vars := parseVariables(variables, path.Base(directory))
+	vars := parseVariables(variables, path.Base(directory), module)
 	fmt.Printf("Variables: %s\n", formatVariables(vars))
 
 	// Show force flag
