@@ -63,9 +63,9 @@ func captureOutput(f func()) string {
 
 func TestRunDryRun_GitSource(t *testing.T) {
 	// Save and restore global state
-	oldDir, oldMod, oldExt := directory, module, extensions
+	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
 	defer func() {
-		directory, module, extensions = oldDir, oldMod, oldExt
+		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
 	}()
 
 	directory = "myapp"
@@ -90,9 +90,9 @@ func TestRunDryRun_GitSource(t *testing.T) {
 }
 
 func TestRunDryRun_LocalSource(t *testing.T) {
-	oldDir, oldMod, oldExt := directory, module, extensions
+	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
 	defer func() {
-		directory, module, extensions = oldDir, oldMod, oldExt
+		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
 	}()
 
 	directory = "customdir"
@@ -114,9 +114,9 @@ func TestRunDryRun_LocalSource(t *testing.T) {
 }
 
 func TestRunDryRun_WithExtensions(t *testing.T) {
-	oldDir, oldMod, oldExt := directory, module, extensions
+	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
 	defer func() {
-		directory, module, extensions = oldDir, oldMod, oldExt
+		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
 	}()
 
 	directory = "myapp"
@@ -609,11 +609,11 @@ func TestFetchTemplate_LocalSource(t *testing.T) {
 }
 
 func TestExecuteScaffold_FullWorkflow(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
 	}()
 
 	// Create a source template
@@ -634,6 +634,7 @@ func TestExecuteScaffold_FullWorkflow(t *testing.T) {
 	noGitInit = false
 	keepConfig = false
 	verbose = false
+	strict = false
 	srcInput = srcDir
 
 	src := &source.LocalSource{Path: srcDir}
@@ -658,11 +659,11 @@ func TestExecuteScaffold_FullWorkflow(t *testing.T) {
 }
 
 func TestExecuteScaffold_WithNoGitInit(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
 	}()
 
 	// Create a source template
@@ -678,6 +679,7 @@ func TestExecuteScaffold_WithNoGitInit(t *testing.T) {
 	noGitInit = true
 	keepConfig = false
 	verbose = false
+	strict = false
 	srcInput = srcDir
 
 	src := &source.LocalSource{Path: srcDir}
@@ -729,11 +731,11 @@ func TestRun_WithDryRun(t *testing.T) {
 }
 
 func TestExecuteScaffold_WithConfigFile(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
 	}()
 
 	// Create a source template with config
@@ -750,6 +752,7 @@ func TestExecuteScaffold_WithConfigFile(t *testing.T) {
 	noGitInit = true
 	keepConfig = false
 	verbose = true
+	strict = false
 	srcInput = srcDir
 
 	src := &source.LocalSource{Path: srcDir}
@@ -768,11 +771,11 @@ func TestExecuteScaffold_WithConfigFile(t *testing.T) {
 }
 
 func TestExecuteScaffold_KeepConfig(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
 	}()
 
 	// Create a source template with config
@@ -789,6 +792,7 @@ func TestExecuteScaffold_KeepConfig(t *testing.T) {
 	noGitInit = true
 	keepConfig = true
 	verbose = false
+	strict = false
 	srcInput = srcDir
 
 	src := &source.LocalSource{Path: srcDir}
@@ -801,4 +805,190 @@ func TestExecuteScaffold_KeepConfig(t *testing.T) {
 	// Verify config was kept
 	_, err := os.Stat(filepath.Join(destDir, ".gohatch.toml"))
 	assert.NoError(t, err)
+}
+
+func TestExecuteScaffold_UnsetVarInPath(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Create a source template with unset variable in path
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "__Author__"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "__Author__", "main.go"), []byte("package main\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unset template variables in paths")
+		assert.Contains(t, err.Error(), "Author")
+	})
+
+	// Directory should be cleaned up
+	_, err := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(err), "directory should be removed on error")
+}
+
+func TestExecuteScaffold_UnsetVarInContent_NoStrict(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Create a source template with unset variable in content
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst Author = \"__Author__\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Warning: unset template variable __Author__")
+
+	// Variable should be removed (replaced with empty string)
+	content, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "__Author__")
+	assert.Contains(t, string(content), `const Author = ""`)
+}
+
+func TestExecuteScaffold_UnsetVarInContent_Strict(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Create a source template with unset variable in content
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst Author = \"__Author__\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unset template variables in file contents")
+		assert.Contains(t, err.Error(), "--strict mode")
+		assert.Contains(t, err.Error(), "Author")
+	})
+
+	// Directory should be cleaned up
+	_, err := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(err), "directory should be removed on error")
+}
+
+func TestExecuteScaffold_AllVarsSet(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Create a source template where all variables are provided
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst Author = \"__Author__\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = []string{"Author=Oliver"}
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	// No warnings should be shown
+	assert.NotContains(t, output, "Warning: unset template variable")
+
+	// Variable should be replaced
+	content, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `const Author = "Oliver"`)
+}
+
+func TestRunDryRun_WithStrict(t *testing.T) {
+	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
+	defer func() {
+		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	strict = true
+
+	src := &source.GitSource{
+		URL: "https://github.com/user/template",
+	}
+
+	output := captureOutput(func() {
+		err := runDryRun(src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "--strict")
+	assert.Contains(t, output, "unset variables in file contents also cause an error")
 }

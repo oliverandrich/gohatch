@@ -35,6 +35,7 @@ var (
 	noGitInit  bool
 	keepConfig bool
 	verbose    bool
+	strict     bool
 )
 
 func main() {
@@ -108,6 +109,11 @@ Examples:
 				Usage:       "show detailed progress output",
 				Destination: &verbose,
 			},
+			&cli.BoolFlag{
+				Name:        "strict",
+				Usage:       "treat unset template variables in file contents as errors",
+				Destination: &strict,
+			},
 		},
 		Arguments: []cli.Argument{
 			&cli.StringArg{
@@ -169,19 +175,9 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	// Load template config
-	cfg, err := gohatchcfg.Load(directory)
+	mergedExtensions, err := loadExtensions()
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-	if gohatchcfg.Exists(directory) {
-		verboseLog("Found %s", gohatchcfg.ConfigFile)
-	}
-
-	// Merge CLI extensions with config extensions
-	mergedExtensions := mergeExtensions(extensions, cfg.Extensions)
-	if len(mergedExtensions) > 0 {
-		verboseLog("Extensions: %v", mergedExtensions)
+		return err
 	}
 
 	if err := validateGoMod(); err != nil {
@@ -189,6 +185,10 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 	}
 
 	vars := parseVariables(variables, path.Base(directory), module)
+
+	if err := detectUnsetVars(vars, mergedExtensions); err != nil {
+		return err
+	}
 
 	if err := renamePaths(vars); err != nil {
 		return err
@@ -202,12 +202,8 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	// Remove config file unless --keep-config is set
-	if gohatchcfg.Exists(directory) && !keepConfig {
-		if err := gohatchcfg.Remove(directory); err != nil {
-			return fmt.Errorf("removing config: %w", err)
-		}
-		verboseLog("Removed %s", gohatchcfg.ConfigFile)
+	if err := removeConfigFile(); err != nil {
+		return err
 	}
 
 	if !noGitInit {
@@ -232,6 +228,32 @@ func fetchTemplate(ctx context.Context, src source.Source) error {
 	}
 
 	return nil
+}
+
+func removeConfigFile() error {
+	if gohatchcfg.Exists(directory) && !keepConfig {
+		if err := gohatchcfg.Remove(directory); err != nil {
+			return fmt.Errorf("removing config: %w", err)
+		}
+		verboseLog("Removed %s", gohatchcfg.ConfigFile)
+	}
+	return nil
+}
+
+func loadExtensions() ([]string, error) {
+	cfg, err := gohatchcfg.Load(directory)
+	if err != nil {
+		return nil, fmt.Errorf("loading config: %w", err)
+	}
+	if gohatchcfg.Exists(directory) {
+		verboseLog("Found %s", gohatchcfg.ConfigFile)
+	}
+
+	merged := mergeExtensions(extensions, cfg.Extensions)
+	if len(merged) > 0 {
+		verboseLog("Extensions: %v", merged)
+	}
+	return merged, nil
 }
 
 func validateGoMod() error {
@@ -309,6 +331,33 @@ func replaceVariables(vars map[string]string, exts []string) error {
 
 	for _, f := range modifiedFiles {
 		verboseLog("Replaced variables in: %s", f)
+	}
+
+	return nil
+}
+
+func detectUnsetVars(vars map[string]string, exts []string) error {
+	unset, err := rewrite.DetectUnsetVars(directory, vars, exts)
+	if err != nil {
+		return fmt.Errorf("detecting unset variables: %w", err)
+	}
+
+	// Unset variables in paths are always an error
+	if len(unset.InPaths) > 0 {
+		_ = os.RemoveAll(directory)
+		return fmt.Errorf("unset template variables in paths: %v (set them with --var Key=Value)", unset.InPaths)
+	}
+
+	// Unset variables in contents: error in strict mode, warning otherwise
+	if len(unset.InContents) > 0 {
+		if strict {
+			_ = os.RemoveAll(directory)
+			return fmt.Errorf("unset template variables in file contents (--strict mode): %v (set them with --var Key=Value)", unset.InContents)
+		}
+		for _, name := range unset.InContents {
+			fmt.Printf("Warning: unset template variable __%s__ will be removed from file contents\n", name)
+			vars[name] = ""
+		}
 	}
 
 	return nil
@@ -409,6 +458,11 @@ func runDryRun(src source.Source) error {
 		fmt.Println("Force:     --force (skip go.mod validation)")
 	}
 
+	// Show strict flag
+	if strict {
+		fmt.Println("Strict:    --strict (unset variables in file contents are errors)")
+	}
+
 	// Show git init status
 	if noGitInit {
 		fmt.Println("Git:       --no-git-init (skip initialization)")
@@ -426,6 +480,10 @@ func runDryRun(src source.Source) error {
 		fmt.Println("Would also replace module path in files with specified extensions.")
 	}
 	fmt.Println("Would replace template variables (__Key__ → Value).")
+	fmt.Println("Unset variables in paths cause an error; in file contents they are removed.")
+	if strict {
+		fmt.Println("With --strict, unset variables in file contents also cause an error.")
+	}
 	if !keepConfig {
 		fmt.Println("Would remove .gohatch.toml from output (use --keep-config to keep).")
 	}
