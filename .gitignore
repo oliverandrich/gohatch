@@ -13,6 +13,10 @@ coverage.out
 .idea/
 *.swp
 
+# Beans
+.beans.yml
+.beans/
+
 # Claude Code
 CLAUDE.md
 AGENTS.md
