@@ -395,6 +395,34 @@ func TestParseExistingDirectoryWithVersion(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParse_RelativeExistingDirectory(t *testing.T) {
+	// Create a temp dir and chdir to its parent so we can refer to it relatively
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "mytemplate")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+
+	t.Chdir(tmpDir)
+
+	src, err := Parse("mytemplate")
+	require.NoError(t, err)
+
+	ls, ok := src.(*LocalSource)
+	require.True(t, ok, "expected LocalSource, got %T", src)
+	assert.Equal(t, "mytemplate", ls.Path)
+}
+
+func TestParse_RelativeExistingDirectoryWithVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "mytemplate")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+
+	t.Chdir(tmpDir)
+
+	_, err := Parse("mytemplate@v1.0.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "version specifier not supported for local paths")
+}
+
 // =============================================================================
 // LocalSource Tests
 // =============================================================================
@@ -548,6 +576,14 @@ func TestGitSourceFetch_InvalidURL(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cloning repository")
+}
+
+func TestLocalSourceFetch_NonexistentPath(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "dest")
+
+	ls := &LocalSource{Path: "/nonexistent/path/that/does/not/exist"}
+	err := ls.Fetch(context.Background(), destDir)
+	require.Error(t, err)
 }
 
 func TestGitSourceFetch_ShortCommitHash(t *testing.T) {

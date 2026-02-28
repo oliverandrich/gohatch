@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestModule(t *testing.T) {
@@ -793,4 +796,176 @@ build:
 	if !strings.Contains(string(data), "myapp") {
 		t.Errorf("Makefile: expected myapp, got: %s", data)
 	}
+}
+
+// =============================================================================
+// updatePathWithRenames tests
+// =============================================================================
+
+func TestUpdatePathWithRenames_MalformedRenameString(t *testing.T) {
+	// A rename string without " → " separator should be skipped (continue branch)
+	path := "/base/dir/some/file.go"
+	malformedRenames := []string{
+		"no-arrow-here",
+		"also missing separator",
+	}
+
+	result := updatePathWithRenames(path, malformedRenames, "/base/dir")
+	assert.Equal(t, path, result, "path should be unchanged with malformed renames")
+}
+
+func TestUpdatePathWithRenames_ExactMatch(t *testing.T) {
+	// Test the exact path match branch (path == oldAbs)
+	baseDir := "/base"
+	path := "/base/olddir"
+	renames := []string{"olddir → newdir"}
+
+	result := updatePathWithRenames(path, renames, baseDir)
+	assert.Equal(t, "/base/newdir", result)
+}
+
+func TestUpdatePathWithRenames_PrefixMatch(t *testing.T) {
+	// Test the prefix match branch (path starts with oldAbs/)
+	baseDir := "/base"
+	path := "/base/olddir/child/file.go"
+	renames := []string{"olddir → newdir"}
+
+	result := updatePathWithRenames(path, renames, baseDir)
+	assert.Equal(t, "/base/newdir/child/file.go", result)
+}
+
+func TestUpdatePathWithRenames_NoMatch(t *testing.T) {
+	baseDir := "/base"
+	path := "/base/other/file.go"
+	renames := []string{"olddir → newdir"}
+
+	result := updatePathWithRenames(path, renames, baseDir)
+	assert.Equal(t, path, result)
+}
+
+// =============================================================================
+// Module error path tests
+// =============================================================================
+
+func TestModule_MissingGoMod(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	_, err := Module(tmpDir, "github.com/new/module", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading go.mod")
+}
+
+func TestModule_MalformedGoMod(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write content that modfile.ParseLax cannot parse
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "go.mod"),
+		[]byte("\x00\x00\x00"),
+		0o644,
+	))
+
+	_, err := Module(tmpDir, "github.com/new/module", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing go.mod")
+}
+
+func TestModule_MalformedGoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	goMod := "module github.com/old/module\n\ngo 1.21\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644))
+
+	// Write a .go file that cannot be parsed by go/parser
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "bad.go"),
+		[]byte("this is not valid go code {{{"),
+		0o644,
+	))
+
+	_, err := Module(tmpDir, "github.com/new/module", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rewriting imports")
+}
+
+func TestReadModulePath_MalformedGoMod(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "go.mod"),
+		[]byte("\x00\x00\x00"),
+		0o644,
+	))
+
+	_, err := ReadModulePath(tmpDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing go.mod")
+}
+
+func TestVariablesSkipsGitDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create .git directory with a .go file containing variables
+	gitDir := filepath.Join(tmpDir, ".git")
+	require.NoError(t, os.MkdirAll(gitDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(gitDir, "hooks.go"),
+		[]byte("package hooks\nconst Name = \"__ProjectName__\"\n"),
+		0o644,
+	))
+
+	vars := map[string]string{"ProjectName": "MyApp"}
+	_, err := Variables(tmpDir, vars, nil)
+	require.NoError(t, err)
+
+	// .git file should NOT be modified
+	data, err := os.ReadFile(filepath.Join(gitDir, "hooks.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "__ProjectName__")
+}
+
+func TestModuleSkipsGitDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	goMod := "module github.com/old/module\n\ngo 1.21\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644))
+
+	// Create .git directory with files that reference the module
+	gitDir := filepath.Join(tmpDir, ".git")
+	require.NoError(t, os.MkdirAll(gitDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(gitDir, "config.toml"),
+		[]byte("url = \"github.com/old/module\"\n"),
+		0o644,
+	))
+
+	_, err := Module(tmpDir, "github.com/new/project", []string{"toml"})
+	require.NoError(t, err)
+
+	// .git file should NOT be modified
+	data, err := os.ReadFile(filepath.Join(gitDir, "config.toml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "github.com/old/module")
+}
+
+func TestRenamePaths_SkipsGitDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create .git directory with a variable-named file
+	gitDir := filepath.Join(tmpDir, ".git")
+	require.NoError(t, os.MkdirAll(gitDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(gitDir, "__ProjectName__"),
+		[]byte("content"),
+		0o644,
+	))
+
+	vars := map[string]string{"ProjectName": "myapp"}
+	renamed, err := RenamePaths(tmpDir, vars)
+	require.NoError(t, err)
+
+	assert.Empty(t, renamed, "should not rename anything inside .git")
+
+	// .git file should still have old name
+	assert.FileExists(t, filepath.Join(gitDir, "__ProjectName__"))
 }

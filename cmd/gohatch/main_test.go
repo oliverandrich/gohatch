@@ -992,3 +992,245 @@ func TestRunDryRun_WithStrict(t *testing.T) {
 	assert.Contains(t, output, "--strict")
 	assert.Contains(t, output, "unset variables in file contents also cause an error")
 }
+
+// =============================================================================
+// Error path tests for run, initGitRepo, getGitAuthor, fetchTemplate,
+// executeScaffold
+// =============================================================================
+
+func TestRun_ParseSourceError(t *testing.T) {
+	oldSrcInput, oldMod, oldDir, oldDryRun := srcInput, module, directory, dryRun
+	defer func() { srcInput, module, directory, dryRun = oldSrcInput, oldMod, oldDir, oldDryRun }()
+
+	// A local path with version suffix triggers a source.Parse error
+	srcInput = "./template@v1.0.0"
+	module = "github.com/me/myapp"
+	directory = ""
+	dryRun = false
+
+	err := run(t.Context(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing source")
+}
+
+func TestGetGitAuthor_Fallback(t *testing.T) {
+	// Set HOME to an empty temp dir where no .gitconfig exists
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	author := getGitAuthor()
+
+	require.NotNil(t, author)
+	assert.Equal(t, "gohatch", author.Name)
+	assert.Equal(t, "gohatch@localhost", author.Email)
+	assert.False(t, author.When.IsZero())
+}
+
+func TestInitGitRepo_InvalidPath(t *testing.T) {
+	// Use a file path instead of a directory — PlainInitWithOptions should fail
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "notadir.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("content"), 0o644))
+
+	captureOutput(func() {
+		err := initGitRepo(filePath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "git init")
+	})
+}
+
+func TestFetchTemplate_FetchError(t *testing.T) {
+	oldDir, oldSrcInput := directory, srcInput
+	defer func() { directory, srcInput = oldDir, oldSrcInput }()
+
+	directory = filepath.Join(t.TempDir(), "dest")
+	srcInput = "invalid-source"
+
+	// Use a GitSource with an invalid URL so Fetch fails
+	src := &source.GitSource{URL: "file:///nonexistent/repo"}
+
+	captureOutput(func() {
+		err := fetchTemplate(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fetching template")
+	})
+}
+
+func TestExecuteScaffold_FetchError(t *testing.T) {
+	oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict :=
+		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict
+	defer func() {
+		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict =
+			oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict
+	}()
+
+	directory = filepath.Join(t.TempDir(), "dest")
+	module = "github.com/me/myapp"
+	srcInput = "invalid"
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+
+	src := &source.GitSource{URL: "file:///nonexistent/repo"}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fetching template")
+	})
+}
+
+func TestExecuteScaffold_NoGoMod_NoForce(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Template without go.mod and no --force
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "README.md"), []byte("# Template"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no go.mod")
+	})
+}
+
+func TestExecuteScaffold_NoGoMod_WithForce(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Template without go.mod but with --force
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "README.md"), []byte("# Template"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = true
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Warning: template has no go.mod")
+	assert.Contains(t, output, "Created")
+}
+
+func TestExecuteScaffold_WithVariablesAndPaths(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Template with variables in paths and content
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "cmd", "__ProjectName__"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(srcDir, "cmd", "__ProjectName__", "main.go"),
+		[]byte("package main\n\nconst app = \"__ProjectName__\"\n"),
+		0o644,
+	))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Renaming paths")
+	assert.Contains(t, output, "Replacing variables")
+
+	// Verify path was renamed
+	assert.DirExists(t, filepath.Join(destDir, "cmd", "myapp"))
+
+	// Verify variable was replaced
+	content, err := os.ReadFile(filepath.Join(destDir, "cmd", "myapp", "main.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"myapp"`)
+}
+
+func TestExecuteScaffold_MalformedConfig(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+	}()
+
+	// Create a source template with a malformed .gohatch.toml
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("this is not valid toml {{{"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "loading config")
+	})
+}
