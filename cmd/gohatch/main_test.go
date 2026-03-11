@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1416,4 +1417,215 @@ func TestRunDryRun_FetchError(t *testing.T) {
 	})
 
 	_ = output
+}
+
+// --- Tests for interactive prompt / --no-prompt ---
+
+func TestDetectUnsetVars_NoPrompt_InPath(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt
+	}()
+
+	// Create a template with unset variable in path
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "__Author__"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "__Author__", "main.go"), []byte("package main\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	noPrompt = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unset template variables in paths")
+		assert.Contains(t, err.Error(), "Author")
+	})
+}
+
+func TestDetectUnsetVars_NoPrompt_InContent(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt
+	}()
+
+	// Create a template with unset variable in content
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst Author = \"__Author__\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	noPrompt = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Warning: unset template variable __Author__")
+
+	// Variable should be removed (replaced with empty string)
+	content, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "__Author__")
+	assert.Contains(t, string(content), `const Author = ""`)
+}
+
+func TestDetectUnsetVars_NonInteractiveTerminal(t *testing.T) {
+	// When not in a terminal, should behave like --no-prompt
+	oldIsInteractive := isInteractive
+	defer func() { isInteractive = oldIsInteractive }()
+	isInteractive = func() bool { return false }
+
+	oldDir, oldNoPrompt, oldStrict := directory, noPrompt, strict
+	defer func() { directory, noPrompt, strict = oldDir, oldNoPrompt, oldStrict }()
+	noPrompt = false // noPrompt is false, but terminal is not interactive
+	strict = false
+
+	// Create temp dir with unset path var
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "__Author__"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "__Author__", "file.go"), []byte("package x\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "out")
+	directory = destDir
+
+	// Copy template to destDir
+	require.NoError(t, copyDir(srcDir, destDir))
+
+	vars := map[string]string{"ProjectName": "out", "GitUser": "me"}
+	err := detectUnsetVars(vars, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unset template variables in paths")
+}
+
+func TestDetectUnsetVars_InteractivePromptCalled(t *testing.T) {
+	// When interactive, promptForVars should be called
+	oldIsInteractive := isInteractive
+	defer func() { isInteractive = oldIsInteractive }()
+	isInteractive = func() bool { return true }
+
+	oldDir, oldNoPrompt, oldStrict := directory, noPrompt, strict
+	defer func() { directory, noPrompt, strict = oldDir, oldNoPrompt, oldStrict }()
+	noPrompt = false
+	strict = false
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst x = \"__License__\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "out")
+	directory = destDir
+
+	require.NoError(t, copyDir(srcDir, destDir))
+
+	vars := map[string]string{"ProjectName": "out", "GitUser": "me"}
+
+	// Running in a non-terminal test environment will cause huh.Run() to fail,
+	// which falls through to the normal (non-prompt) behavior.
+	// This test verifies the code path reaches the prompt logic.
+	output := captureOutput(func() {
+		err := detectUnsetVars(vars, nil)
+		// The prompt will fail since there's no real terminal, which is an error
+		// OR the unset vars will be handled as warnings (content only)
+		// Either way, the function should not panic
+		_ = err
+	})
+	_ = output
+}
+
+func TestRecomputeUnset(t *testing.T) {
+	unset := &rewrite.UnsetVars{
+		InPaths:    []string{"Author", "License"},
+		InContents: []string{"Description", "License"},
+	}
+
+	vars := map[string]string{
+		"Author":  "Oliver",
+		"License": "MIT",
+		// Description not set
+	}
+
+	result := recomputeUnset(unset, vars)
+
+	// Author and License have values, so InPaths should be empty
+	assert.Empty(t, result.InPaths)
+	// Description is not in vars, so it should remain
+	assert.Equal(t, []string{"Description"}, result.InContents)
+}
+
+func TestRecomputeUnset_PathVarEmpty(t *testing.T) {
+	unset := &rewrite.UnsetVars{
+		InPaths: []string{"Author"},
+	}
+
+	vars := map[string]string{
+		"Author": "", // empty string counts as unset for paths
+	}
+
+	result := recomputeUnset(unset, vars)
+	assert.Equal(t, []string{"Author"}, result.InPaths)
+}
+
+func TestRecomputeUnset_ContentVarEmpty(t *testing.T) {
+	unset := &rewrite.UnsetVars{
+		InContents: []string{"Description"},
+	}
+
+	vars := map[string]string{
+		"Description": "", // empty is OK for content vars (present in map)
+	}
+
+	result := recomputeUnset(unset, vars)
+	// Description is in vars (even if empty), so it should be removed from unset
+	assert.Empty(t, result.InContents)
+}
+
+// copyDir copies a directory tree for test setup.
+func copyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }

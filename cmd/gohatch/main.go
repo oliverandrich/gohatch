@@ -10,9 +10,11 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
+	"sort"
 	"strings"
 	"time"
 
+	"charm.land/huh/v2"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -21,6 +23,7 @@ import (
 	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/term"
 )
 
 var version = "dev"
@@ -45,6 +48,7 @@ var (
 	keepConfig bool
 	verbose    bool
 	strict     bool
+	noPrompt   bool
 )
 
 func main() {
@@ -122,6 +126,11 @@ Examples:
 				Name:        "strict",
 				Usage:       "treat unset template variables in file contents as errors",
 				Destination: &strict,
+			},
+			&cli.BoolFlag{
+				Name:        "no-prompt",
+				Usage:       "disable interactive prompting for missing variables",
+				Destination: &noPrompt,
 			},
 		},
 		Arguments: []cli.Argument{
@@ -351,6 +360,20 @@ func detectUnsetVars(vars map[string]string, exts []string) error {
 		return fmt.Errorf("detecting unset variables: %w", err)
 	}
 
+	if len(unset.InPaths) == 0 && len(unset.InContents) == 0 {
+		return nil
+	}
+
+	// Prompt interactively if possible
+	if !noPrompt && isInteractive() {
+		if promptErr := promptForVars(unset, vars); promptErr != nil {
+			_ = os.RemoveAll(directory)
+			return fmt.Errorf("prompting for variables: %w", promptErr)
+		}
+		// Re-check after prompting: vars that got values are no longer unset
+		unset = recomputeUnset(unset, vars)
+	}
+
 	// Unset variables in paths are always an error
 	if len(unset.InPaths) > 0 {
 		_ = os.RemoveAll(directory)
@@ -370,6 +393,92 @@ func detectUnsetVars(vars map[string]string, exts []string) error {
 	}
 
 	return nil
+}
+
+// isInteractive returns true if stdin is a terminal.
+// Extracted as a variable for testing.
+var isInteractive = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// promptForVars prompts the user for each unset variable using an interactive form.
+func promptForVars(unset *rewrite.UnsetVars, vars map[string]string) error {
+	// Collect unique variable names, path vars first (required)
+	seen := make(map[string]bool)
+	var pathVars, contentVars []string
+	for _, name := range unset.InPaths {
+		if !seen[name] {
+			seen[name] = true
+			pathVars = append(pathVars, name)
+		}
+	}
+	for _, name := range unset.InContents {
+		if !seen[name] {
+			seen[name] = true
+			contentVars = append(contentVars, name)
+		}
+	}
+
+	// Use local string pointers so huh can bind to them
+	type varBinding struct {
+		name string
+		val  string
+	}
+	bindings := make([]*varBinding, 0, len(pathVars)+len(contentVars))
+	fields := make([]huh.Field, 0, len(pathVars)+len(contentVars))
+
+	for _, name := range pathVars {
+		b := &varBinding{name: name}
+		bindings = append(bindings, b)
+		fields = append(fields, huh.NewInput().
+			Title(name+" (required, used in paths)").
+			Value(&b.val).
+			Validate(func(s string) error {
+				if s == "" {
+					return fmt.Errorf("%s is required (used in file paths)", b.name)
+				}
+				return nil
+			}))
+	}
+
+	for _, name := range contentVars {
+		b := &varBinding{name: name}
+		bindings = append(bindings, b)
+		fields = append(fields, huh.NewInput().
+			Title(name).
+			Value(&b.val))
+	}
+
+	form := huh.NewForm(huh.NewGroup(fields...))
+
+	fmt.Println()
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Copy prompted values back to vars map
+	for _, b := range bindings {
+		vars[b.name] = b.val
+	}
+	return nil
+}
+
+// recomputeUnset filters out variables that now have values after prompting.
+func recomputeUnset(unset *rewrite.UnsetVars, vars map[string]string) *rewrite.UnsetVars {
+	result := &rewrite.UnsetVars{}
+	for _, name := range unset.InPaths {
+		if v, ok := vars[name]; !ok || v == "" {
+			result.InPaths = append(result.InPaths, name)
+		}
+	}
+	for _, name := range unset.InContents {
+		if _, ok := vars[name]; !ok {
+			result.InContents = append(result.InContents, name)
+		}
+	}
+	sort.Strings(result.InPaths)
+	sort.Strings(result.InContents)
+	return result
 }
 
 // parseVariables converts CLI key=value pairs to a map.
