@@ -7,8 +7,8 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/stretchr/testify v1.11.1
-	github.com/urfave/cli/v3 v3.6.2
-	golang.org/x/mod v0.33.0
+	github.com/urfave/cli/v3 v3.7.0
+	golang.org/x/mod v0.34.0
 	golang.org/x/term v0.41.0
 )
 
