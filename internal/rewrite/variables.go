@@ -24,7 +24,13 @@ func Variables(dir string, vars map[string]string, extraPatterns []string) ([]st
 	patternSet := parseFilePatterns(extraPatterns)
 	patternSet["go"] = true
 
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("opening directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -42,12 +48,16 @@ func Variables(dir string, vars map[string]string, extraPatterns []string) ([]st
 			return nil
 		}
 
-		modified, err := replaceVariablesInFile(path, vars)
-		if err != nil {
-			return err
+		relPath, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			return relErr
+		}
+
+		modified, replaceErr := replaceVariablesInFile(root, relPath, vars)
+		if replaceErr != nil {
+			return replaceErr
 		}
 		if modified {
-			relPath, _ := filepath.Rel(dir, path)
 			modifiedFiles = append(modifiedFiles, relPath)
 		}
 		return nil
@@ -58,11 +68,10 @@ func Variables(dir string, vars map[string]string, extraPatterns []string) ([]st
 
 // replaceVariablesInFile replaces __Key__ with Value for all variables.
 // Returns true if the file was modified.
-func replaceVariablesInFile(filePath string, vars map[string]string) (bool, error) {
-	cleanPath := filepath.Clean(filePath)
-	data, err := os.ReadFile(cleanPath)
+func replaceVariablesInFile(root *os.Root, relPath string, vars map[string]string) (bool, error) {
+	data, err := readFromRoot(root, relPath)
 	if err != nil {
-		return false, fmt.Errorf("reading %s: %w", cleanPath, err)
+		return false, fmt.Errorf("reading %s: %w", relPath, err)
 	}
 
 	// Replace each variable
@@ -77,10 +86,10 @@ func replaceVariablesInFile(filePath string, vars map[string]string) (bool, erro
 		return false, nil
 	}
 
-	info, err := os.Stat(cleanPath)
+	info, err := root.Stat(relPath)
 	if err != nil {
 		return false, err
 	}
 
-	return true, os.WriteFile(cleanPath, newData, info.Mode())
+	return true, writeToRoot(root, relPath, newData, info.Mode())
 }

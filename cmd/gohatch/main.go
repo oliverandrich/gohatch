@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	gohatchcfg "codeberg.org/oliverandrich/gohatch/internal/config"
-	"codeberg.org/oliverandrich/gohatch/internal/rewrite"
-	"codeberg.org/oliverandrich/gohatch/internal/source"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	gohatchcfg "github.com/oliverandrich/gohatch/internal/config"
+	"github.com/oliverandrich/gohatch/internal/rewrite"
+	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/urfave/cli/v3"
 )
 

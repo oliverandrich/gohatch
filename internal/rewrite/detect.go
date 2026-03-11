@@ -4,6 +4,7 @@
 package rewrite
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,7 +31,13 @@ func DetectUnsetVars(dir string, vars map[string]string, extraPatterns []string)
 	patternSet := parseFilePatterns(extraPatterns)
 	patternSet["go"] = true
 
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("opening directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -53,9 +60,13 @@ func DetectUnsetVars(dir string, vars map[string]string, extraPatterns []string)
 
 		// Check file contents for unset variables
 		if !d.IsDir() && matchesFilePattern(d.Name(), patternSet) {
-			data, err := os.ReadFile(filepath.Clean(path))
-			if err != nil {
-				return err
+			relPath, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				return relErr
+			}
+			data, readErr := readFromRoot(root, relPath)
+			if readErr != nil {
+				return readErr
 			}
 			contentMatches := varPattern.FindAllStringSubmatch(string(data), -1)
 			for _, m := range contentMatches {

@@ -6,6 +6,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -39,6 +40,23 @@ type LocalSource struct {
 func (s *LocalSource) Fetch(_ context.Context, dest string) error {
 	src := filepath.Clean(s.Path)
 
+	srcRoot, err := os.OpenRoot(src)
+	if err != nil {
+		return fmt.Errorf("opening source directory: %w", err)
+	}
+	defer func() { _ = srcRoot.Close() }()
+
+	mkdirErr := os.MkdirAll(dest, 0o750)
+	if mkdirErr != nil {
+		return mkdirErr
+	}
+
+	destRoot, err := os.OpenRoot(dest)
+	if err != nil {
+		return fmt.Errorf("opening destination directory: %w", err)
+	}
+	defer func() { _ = destRoot.Close() }()
+
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -49,28 +67,53 @@ func (s *LocalSource) Fetch(_ context.Context, dest string) error {
 			return filepath.SkipDir
 		}
 
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
+		relPath, relErr := filepath.Rel(src, path)
+		if relErr != nil {
+			return relErr
 		}
-		destPath := filepath.Join(dest, relPath)
+
+		// Skip root directory itself
+		if relPath == "." {
+			return nil
+		}
 
 		if d.IsDir() {
-			return os.MkdirAll(destPath, 0o750)
+			return destRoot.Mkdir(relPath, 0o750)
 		}
 
-		data, err := os.ReadFile(filepath.Clean(path))
-		if err != nil {
-			return err
+		data, readErr := readFromRoot(srcRoot, relPath)
+		if readErr != nil {
+			return readErr
 		}
 
-		info, err := d.Info()
-		if err != nil {
-			return err
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return infoErr
 		}
 
-		return os.WriteFile(destPath, data, info.Mode())
+		return writeToRoot(destRoot, relPath, data, info.Mode())
 	})
+}
+
+// readFromRoot reads a file using os.Root-scoped access.
+func readFromRoot(root *os.Root, name string) ([]byte, error) {
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return io.ReadAll(f)
+}
+
+// writeToRoot writes a file using os.Root-scoped access.
+func writeToRoot(root *os.Root, name string, data []byte, perm os.FileMode) error {
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	_, err = f.Write(data)
+	return err
 }
 
 // =============================================================================

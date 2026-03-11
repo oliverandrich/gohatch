@@ -285,7 +285,13 @@ func main() {
 	// Get original mod time
 	origInfo, _ := os.Stat(filePath)
 
-	_, err := rewriteGoFile(filePath, "github.com/other/module", "github.com/new/module")
+	root, err := os.OpenRoot(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	_, err = rewriteGoFile(root, "main.go", "github.com/other/module", "github.com/new/module")
 	if err != nil {
 		t.Fatalf("rewriteGoFile() error = %v", err)
 	}
@@ -312,7 +318,13 @@ func TestRewriteTextFileNoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := rewriteTextFile(filePath, "github.com/old/module", "github.com/new/module")
+	root, err := os.OpenRoot(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	_, err = rewriteTextFile(root, "config.toml", "github.com/old/module", "github.com/new/module")
 	if err != nil {
 		t.Fatalf("rewriteTextFile() error = %v", err)
 	}

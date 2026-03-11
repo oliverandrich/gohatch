@@ -23,14 +23,19 @@ import (
 func Module(dir, newModule string, extraExtensions []string) ([]string, error) {
 	var modifiedFiles []string
 
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("opening directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
 	// Read and parse go.mod
-	goModPath := filepath.Clean(filepath.Join(dir, "go.mod"))
-	data, err := os.ReadFile(goModPath)
+	data, err := readFromRoot(root, "go.mod")
 	if err != nil {
 		return nil, fmt.Errorf("reading go.mod: %w", err)
 	}
 
-	f, err := modfile.ParseLax(goModPath, data, nil)
+	f, err := modfile.ParseLax("go.mod", data, nil)
 	if err != nil {
 		return nil, fmt.Errorf("parsing go.mod: %w", err)
 	}
@@ -51,14 +56,14 @@ func Module(dir, newModule string, extraExtensions []string) ([]string, error) {
 		return nil, fmt.Errorf("formatting go.mod: %w", err)
 	}
 
-	err = os.WriteFile(goModPath, newData, 0o600)
+	err = writeToRoot(root, "go.mod", newData, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("writing go.mod: %w", err)
 	}
 	modifiedFiles = append(modifiedFiles, "go.mod")
 
 	// Rewrite imports in all .go files
-	goFiles, err := rewriteGoFiles(dir, oldModule, newModule)
+	goFiles, err := rewriteGoFiles(root, dir, oldModule, newModule)
 	if err != nil {
 		return nil, fmt.Errorf("rewriting imports: %w", err)
 	}
@@ -66,7 +71,7 @@ func Module(dir, newModule string, extraExtensions []string) ([]string, error) {
 
 	// Rewrite extra extension files with simple string replacement
 	if len(extraExtensions) > 0 {
-		extraFiles, err := rewriteExtraFiles(dir, oldModule, newModule, extraExtensions)
+		extraFiles, err := rewriteExtraFiles(root, dir, oldModule, newModule, extraExtensions)
 		if err != nil {
 			return nil, fmt.Errorf("rewriting extra files: %w", err)
 		}
@@ -78,7 +83,7 @@ func Module(dir, newModule string, extraExtensions []string) ([]string, error) {
 
 // rewriteGoFiles walks through all .go files and rewrites import paths.
 // Returns the list of modified files.
-func rewriteGoFiles(dir, oldModule, newModule string) ([]string, error) {
+func rewriteGoFiles(root *os.Root, dir, oldModule, newModule string) ([]string, error) {
 	var modifiedFiles []string
 
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
@@ -100,12 +105,16 @@ func rewriteGoFiles(dir, oldModule, newModule string) ([]string, error) {
 			return nil
 		}
 
-		modified, err := rewriteGoFile(path, oldModule, newModule)
-		if err != nil {
-			return err
+		relPath, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			return relErr
+		}
+
+		modified, rewriteErr := rewriteGoFile(root, relPath, oldModule, newModule)
+		if rewriteErr != nil {
+			return rewriteErr
 		}
 		if modified {
-			relPath, _ := filepath.Rel(dir, path)
 			modifiedFiles = append(modifiedFiles, relPath)
 		}
 		return nil
@@ -116,12 +125,16 @@ func rewriteGoFiles(dir, oldModule, newModule string) ([]string, error) {
 
 // rewriteGoFile rewrites import paths in a single .go file using AST.
 // Returns true if the file was modified.
-func rewriteGoFile(filePath, oldModule, newModule string) (bool, error) {
-	cleanPath := filepath.Clean(filePath)
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, cleanPath, nil, parser.ParseComments)
+func rewriteGoFile(root *os.Root, relPath, oldModule, newModule string) (bool, error) {
+	data, err := readFromRoot(root, relPath)
 	if err != nil {
-		return false, fmt.Errorf("parsing %s: %w", cleanPath, err)
+		return false, fmt.Errorf("reading %s: %w", relPath, err)
+	}
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, relPath, data, parser.ParseComments)
+	if err != nil {
+		return false, fmt.Errorf("parsing %s: %w", relPath, err)
 	}
 
 	modified := false
@@ -145,21 +158,21 @@ func rewriteGoFile(filePath, oldModule, newModule string) (bool, error) {
 	var buf bytes.Buffer
 	err = format.Node(&buf, fset, f)
 	if err != nil {
-		return false, fmt.Errorf("formatting %s: %w", cleanPath, err)
+		return false, fmt.Errorf("formatting %s: %w", relPath, err)
 	}
 
-	info, err := os.Stat(cleanPath)
+	info, err := root.Stat(relPath)
 	if err != nil {
 		return false, err
 	}
 
-	return true, os.WriteFile(cleanPath, buf.Bytes(), info.Mode())
+	return true, writeToRoot(root, relPath, buf.Bytes(), info.Mode())
 }
 
 // rewriteExtraFiles walks through files with specified extensions or filenames
 // and performs simple string replacement.
 // Returns the list of modified files.
-func rewriteExtraFiles(dir, oldModule, newModule string, patterns []string) ([]string, error) {
+func rewriteExtraFiles(root *os.Root, dir, oldModule, newModule string, patterns []string) ([]string, error) {
 	var modifiedFiles []string
 
 	patternSet := parseFilePatterns(patterns)
@@ -182,12 +195,16 @@ func rewriteExtraFiles(dir, oldModule, newModule string, patterns []string) ([]s
 			return nil
 		}
 
-		modified, err := rewriteTextFile(path, oldModule, newModule)
-		if err != nil {
-			return err
+		relPath, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			return relErr
+		}
+
+		modified, rewriteErr := rewriteTextFile(root, relPath, oldModule, newModule)
+		if rewriteErr != nil {
+			return rewriteErr
 		}
 		if modified {
-			relPath, _ := filepath.Rel(dir, path)
 			modifiedFiles = append(modifiedFiles, relPath)
 		}
 		return nil
@@ -198,11 +215,10 @@ func rewriteExtraFiles(dir, oldModule, newModule string, patterns []string) ([]s
 
 // rewriteTextFile performs simple string replacement in a text file.
 // Returns true if the file was modified.
-func rewriteTextFile(filePath, oldModule, newModule string) (bool, error) {
-	cleanPath := filepath.Clean(filePath)
-	data, err := os.ReadFile(cleanPath)
+func rewriteTextFile(root *os.Root, relPath, oldModule, newModule string) (bool, error) {
+	data, err := readFromRoot(root, relPath)
 	if err != nil {
-		return false, fmt.Errorf("reading %s: %w", cleanPath, err)
+		return false, fmt.Errorf("reading %s: %w", relPath, err)
 	}
 
 	// Simple string replacement
@@ -213,12 +229,12 @@ func rewriteTextFile(filePath, oldModule, newModule string) (bool, error) {
 		return false, nil
 	}
 
-	info, err := os.Stat(cleanPath)
+	info, err := root.Stat(relPath)
 	if err != nil {
 		return false, err
 	}
 
-	return true, os.WriteFile(cleanPath, newData, info.Mode())
+	return true, writeToRoot(root, relPath, newData, info.Mode())
 }
 
 // ReadModulePath reads the module path from a go.mod file.

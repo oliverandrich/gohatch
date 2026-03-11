@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"codeberg.org/oliverandrich/gohatch/internal/source"
+	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

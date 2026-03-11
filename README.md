@@ -2,13 +2,13 @@
 
 [![Go Version](https://img.shields.io/badge/go-1.24-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-EUPL--1.2-blue?style=for-the-badge)](LICENSE)
-[![Codeberg](https://img.shields.io/badge/codeberg-repo-2185D0?style=for-the-badge&logo=codeberg&logoColor=white)](https://codeberg.org/oliverandrich/gohatch)
+[![GitHub](https://img.shields.io/badge/github-repo-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/oliverandrich/gohatch)
 
 A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew) with additional features.
 
 ## Features
 
-- Clone templates from GitHub, Codeberg, or any Git host
+- Clone templates from GitHub, GitLab, or any Git host
 - Use local directories as templates
 - Automatic module path rewriting in `go.mod` and all `.go` files
 - Template variable substitution (`__VarName__` → `Value`)
@@ -26,24 +26,24 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew tap oliverandrich/tap https://codeberg.org/oliverandrich/homebrew-tap.git
+brew tap oliverandrich/tap https://github.com/oliverandrich/homebrew-tap.git
 brew install gohatch
 ```
 
 ### Go Install
 
 ```bash
-go install codeberg.org/oliverandrich/gohatch@latest
+go install github.com/oliverandrich/gohatch@latest
 ```
 
 ### Binary Downloads
 
-Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://codeberg.org/oliverandrich/gohatch/releases) page.
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/oliverandrich/gohatch/releases) page.
 
 ### Build from Source
 
 ```bash
-git clone https://codeberg.org/oliverandrich/gohatch.git
+git clone https://github.com/oliverandrich/gohatch.git
 cd gohatch
 go build -o gohatch ./cmd/gohatch
 ```
