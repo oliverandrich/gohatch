@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	gohatchcfg "github.com/oliverandrich/gohatch/internal/config"
 	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/stretchr/testify/assert"
@@ -631,11 +632,11 @@ func TestFetchTemplate_LocalSource(t *testing.T) {
 }
 
 func TestExecuteScaffold_FullWorkflow(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template
@@ -681,11 +682,11 @@ func TestExecuteScaffold_FullWorkflow(t *testing.T) {
 }
 
 func TestExecuteScaffold_WithNoGitInit(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template
@@ -760,11 +761,11 @@ func TestRun_WithDryRun(t *testing.T) {
 }
 
 func TestExecuteScaffold_WithConfigFile(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with config
@@ -800,11 +801,11 @@ func TestExecuteScaffold_WithConfigFile(t *testing.T) {
 }
 
 func TestExecuteScaffold_KeepConfig(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with config
@@ -837,11 +838,11 @@ func TestExecuteScaffold_KeepConfig(t *testing.T) {
 }
 
 func TestExecuteScaffold_UnsetVarInPath(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with unset variable in path
@@ -877,11 +878,11 @@ func TestExecuteScaffold_UnsetVarInPath(t *testing.T) {
 }
 
 func TestExecuteScaffold_UnsetVarInContent_NoStrict(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with unset variable in content
@@ -918,11 +919,11 @@ func TestExecuteScaffold_UnsetVarInContent_NoStrict(t *testing.T) {
 }
 
 func TestExecuteScaffold_UnsetVarInContent_Strict(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with unset variable in content
@@ -958,11 +959,11 @@ func TestExecuteScaffold_UnsetVarInContent_Strict(t *testing.T) {
 }
 
 func TestExecuteScaffold_AllVarsSet(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template where all variables are provided
@@ -1088,11 +1089,11 @@ func TestFetchTemplate_FetchError(t *testing.T) {
 }
 
 func TestExecuteScaffold_FetchError(t *testing.T) {
-	oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict :=
-		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict
+	oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict, oldNoHooks :=
+		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict, noHooks
 	defer func() {
-		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict =
-			oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict
+		directory, module, srcInput, variables, force, noGitInit, keepConfig, verbose, strict, noHooks =
+			oldDir, oldMod, oldSrcInput, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldStrict, oldNoHooks
 	}()
 
 	directory = filepath.Join(t.TempDir(), "dest")
@@ -1115,11 +1116,11 @@ func TestExecuteScaffold_FetchError(t *testing.T) {
 }
 
 func TestExecuteScaffold_NoGoMod_NoForce(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Template without go.mod and no --force
@@ -1148,11 +1149,11 @@ func TestExecuteScaffold_NoGoMod_NoForce(t *testing.T) {
 }
 
 func TestExecuteScaffold_NoGoMod_WithForce(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Template without go.mod but with --force
@@ -1183,11 +1184,11 @@ func TestExecuteScaffold_NoGoMod_WithForce(t *testing.T) {
 }
 
 func TestExecuteScaffold_WithVariablesAndPaths(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Template with variables in paths and content
@@ -1232,11 +1233,11 @@ func TestExecuteScaffold_WithVariablesAndPaths(t *testing.T) {
 }
 
 func TestExecuteScaffold_MalformedConfig(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
 	}()
 
 	// Create a source template with a malformed .gohatch.toml
@@ -1422,11 +1423,11 @@ func TestRunDryRun_FetchError(t *testing.T) {
 // --- Tests for interactive prompt / --no-prompt ---
 
 func TestDetectUnsetVars_NoPrompt_InPath(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt, oldNoHooks
 	}()
 
 	// Create a template with unset variable in path
@@ -1459,11 +1460,11 @@ func TestDetectUnsetVars_NoPrompt_InPath(t *testing.T) {
 }
 
 func TestDetectUnsetVars_NoPrompt_InContent(t *testing.T) {
-	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt :=
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt, noHooks
 	defer func() {
-		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt =
-			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noPrompt, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoPrompt, oldNoHooks
 	}()
 
 	// Create a template with unset variable in content
@@ -1628,4 +1629,470 @@ func copyDir(src, dst string) error {
 		}
 		return os.WriteFile(target, data, 0o644)
 	})
+}
+
+// =============================================================================
+// Hook tests
+// =============================================================================
+
+func TestSubstituteHookVars(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		vars    map[string]string
+		want    string
+	}{
+		{
+			name:    "basic substitution",
+			command: "echo __ProjectName__",
+			vars:    map[string]string{"ProjectName": "myapp"},
+			want:    "echo myapp",
+		},
+		{
+			name:    "multiple vars",
+			command: "echo __ProjectName__ by __Author__",
+			vars:    map[string]string{"ProjectName": "myapp", "Author": "Oliver"},
+			want:    "echo myapp by Oliver",
+		},
+		{
+			name:    "no vars",
+			command: "go mod tidy",
+			vars:    map[string]string{},
+			want:    "go mod tidy",
+		},
+		{
+			name:    "no matching placeholders",
+			command: "go mod tidy",
+			vars:    map[string]string{"ProjectName": "myapp"},
+			want:    "go mod tidy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := substituteHookVars(tt.command, tt.vars)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRunHooks_NoHooks(t *testing.T) {
+	oldNoHooks := noHooks
+	defer func() { noHooks = oldNoHooks }()
+	noHooks = false
+
+	err := runHooks(t.Context(), nil, t.TempDir(), nil)
+	require.NoError(t, err)
+
+	err = runHooks(t.Context(), []gohatchcfg.Hook{}, t.TempDir(), nil)
+	require.NoError(t, err)
+}
+
+func TestRunHooks_NoHooksFlag(t *testing.T) {
+	oldNoHooks := noHooks
+	defer func() { noHooks = oldNoHooks }()
+	noHooks = true
+
+	hooks := []gohatchcfg.Hook{{Name: "test", Command: "echo hello"}}
+	err := runHooks(t.Context(), hooks, t.TempDir(), nil)
+	assert.NoError(t, err)
+}
+
+func TestRunHooks_NonInteractive(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+	}()
+	noHooks = false
+	isInteractive = func() bool { return false }
+
+	hooks := []gohatchcfg.Hook{{Name: "test", Command: "echo hello"}}
+
+	output := captureOutput(func() {
+		err := runHooks(t.Context(), hooks, t.TempDir(), nil)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "skipping hooks")
+}
+
+func TestRunHooks_Confirmed_Success(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	dir := t.TempDir()
+	markerFile := filepath.Join(dir, "hook-ran.txt")
+	hooks := []gohatchcfg.Hook{{Name: "marker", Command: "touch " + markerFile}}
+
+	output := captureOutput(func() {
+		err := runHooks(t.Context(), hooks, dir, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Running hook: marker")
+	assert.FileExists(t, markerFile)
+}
+
+func TestRunHooks_Confirmed_Failure(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	hooks := []gohatchcfg.Hook{{Name: "fail", Command: "exit 1"}}
+
+	captureOutput(func() {
+		err := runHooks(t.Context(), hooks, t.TempDir(), nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `hook "fail" failed`)
+	})
+}
+
+func TestRunHooks_Declined(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return false, nil
+	}
+
+	dir := t.TempDir()
+	markerFile := filepath.Join(dir, "should-not-exist.txt")
+	hooks := []gohatchcfg.Hook{{Name: "marker", Command: "touch " + markerFile}}
+
+	output := captureOutput(func() {
+		err := runHooks(t.Context(), hooks, dir, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Skipping hooks")
+	assert.NoFileExists(t, markerFile)
+}
+
+func TestRunHooks_FailureAbortsRemaining(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	dir := t.TempDir()
+	markerFile := filepath.Join(dir, "second-ran.txt")
+	hooks := []gohatchcfg.Hook{
+		{Name: "first", Command: "exit 1"},
+		{Name: "second", Command: "touch " + markerFile},
+	}
+
+	captureOutput(func() {
+		err := runHooks(t.Context(), hooks, dir, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `hook "first" failed`)
+	})
+
+	assert.NoFileExists(t, markerFile)
+}
+
+func TestRunHooks_VarSubstitution(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	dir := t.TempDir()
+	outputFile := filepath.Join(dir, "output.txt")
+	hooks := []gohatchcfg.Hook{{Name: "echo", Command: "echo __ProjectName__ > " + outputFile}}
+	vars := map[string]string{"ProjectName": "myapp"}
+
+	captureOutput(func() {
+		err := runHooks(t.Context(), hooks, dir, vars)
+		require.NoError(t, err)
+	})
+
+	content, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "myapp")
+}
+
+func TestRunHooks_WorkingDirectory(t *testing.T) {
+	oldNoHooks := noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		noHooks = oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+	noHooks = false
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	dir := t.TempDir()
+	hooks := []gohatchcfg.Hook{{Name: "pwd", Command: "pwd > pwd.txt"}}
+
+	captureOutput(func() {
+		err := runHooks(t.Context(), hooks, dir, nil)
+		require.NoError(t, err)
+	})
+
+	content, err := os.ReadFile(filepath.Join(dir, "pwd.txt"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), filepath.Base(dir))
+}
+
+// --- Integration tests for hooks in executeScaffold ---
+
+func TestExecuteScaffold_WithHooks(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("version = 1\n\n[[hooks]]\nname = \"Create marker\"\ncommand = \"touch hook-marker.txt\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	noHooks = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Running hook: Create marker")
+	assert.FileExists(t, filepath.Join(destDir, "hook-marker.txt"))
+}
+
+func TestExecuteScaffold_WithHooks_NoHooksFlag(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("version = 1\n\n[[hooks]]\nname = \"Create marker\"\ncommand = \"touch hook-marker.txt\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	noHooks = true
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.NoError(t, err)
+	})
+
+	assert.NoFileExists(t, filepath.Join(destDir, "hook-marker.txt"))
+}
+
+func TestExecuteScaffold_WithHooks_HookFails_CleansUp(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks :=
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks
+	oldIsInteractive := isInteractive
+	oldConfirmHooks := confirmHooks
+	defer func() {
+		directory, module, extensions, variables, force, noGitInit, keepConfig, verbose, srcInput, strict, noHooks =
+			oldDir, oldMod, oldExt, oldVars, oldForce, oldNoGitInit, oldKeepConfig, oldVerbose, oldSrcInput, oldStrict, oldNoHooks
+		isInteractive = oldIsInteractive
+		confirmHooks = oldConfirmHooks
+	}()
+
+	isInteractive = func() bool { return true }
+	confirmHooks = func(_ []gohatchcfg.Hook, _ map[string]string) (bool, error) {
+		return true, nil
+	}
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/template/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("version = 1\n\n[[hooks]]\nname = \"Fail hook\"\ncommand = \"exit 1\"\n"), 0o644))
+
+	destDir := filepath.Join(t.TempDir(), "myapp")
+	directory = destDir
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = false
+	noGitInit = true
+	keepConfig = false
+	verbose = false
+	strict = false
+	noHooks = false
+	srcInput = srcDir
+
+	src := &source.LocalSource{Path: srcDir}
+
+	captureOutput(func() {
+		err := executeScaffold(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `hook "Fail hook" failed`)
+	})
+
+	_, err := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(err), "directory should be removed on hook failure")
+}
+
+// --- Dry-run hook tests ---
+
+func TestRunDryRun_WithHooks(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldNoHooks := directory, module, extensions, variables, noHooks
+	defer func() {
+		directory, module, extensions, variables, noHooks = oldDir, oldMod, oldExt, oldVars, oldNoHooks
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("version = 1\n\n[[hooks]]\nname = \"Install deps\"\ncommand = \"go mod tidy\"\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	noHooks = false
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Hooks:")
+	assert.Contains(t, output, "Install deps")
+	assert.Contains(t, output, "go mod tidy")
+}
+
+func TestRunDryRun_WithHooks_VarSubstitution(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldNoHooks := directory, module, extensions, variables, noHooks
+	defer func() {
+		directory, module, extensions, variables, noHooks = oldDir, oldMod, oldExt, oldVars, oldNoHooks
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("version = 1\n\n[[hooks]]\nname = \"Setup\"\ncommand = \"echo __ProjectName__\"\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	noHooks = false
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Hooks:")
+	assert.Contains(t, output, "echo myapp")
+}
+
+func TestRunDryRun_NoHooksFlag(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldNoHooks := directory, module, extensions, variables, noHooks
+	defer func() {
+		directory, module, extensions, variables, noHooks = oldDir, oldMod, oldExt, oldVars, oldNoHooks
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	noHooks = true
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Would skip hooks (--no-hooks).")
 }

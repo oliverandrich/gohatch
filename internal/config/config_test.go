@@ -78,6 +78,63 @@ extensions = []
 	})
 }
 
+func TestLoad_WithHooks(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ConfigFile)
+
+	content := `version = 1
+extensions = ["toml"]
+
+[[hooks]]
+name = "Install dependencies"
+command = "go mod tidy"
+
+[[hooks]]
+name = "Setup project"
+command = "echo Setting up __ProjectName__"
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+
+	cfg, err := Load(dir)
+	require.NoError(t, err)
+	assert.Equal(t, 1, cfg.Version)
+	assert.Equal(t, []string{"toml"}, cfg.Extensions)
+	require.Len(t, cfg.Hooks, 2)
+	assert.Equal(t, "Install dependencies", cfg.Hooks[0].Name)
+	assert.Equal(t, "go mod tidy", cfg.Hooks[0].Command)
+	assert.Equal(t, "Setup project", cfg.Hooks[1].Name)
+	assert.Equal(t, "echo Setting up __ProjectName__", cfg.Hooks[1].Command)
+}
+
+func TestLoad_WithEmptyHooks(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ConfigFile)
+
+	content := `version = 1
+hooks = []
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+
+	cfg, err := Load(dir)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Hooks)
+}
+
+func TestLoad_WithoutHooks(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ConfigFile)
+
+	content := `version = 1
+extensions = ["yaml"]
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+
+	cfg, err := Load(dir)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.Hooks)
+	assert.Equal(t, []string{"yaml"}, cfg.Extensions)
+}
+
 func TestExists(t *testing.T) {
 	t.Run("returns true when config exists", func(t *testing.T) {
 		dir := t.TempDir()

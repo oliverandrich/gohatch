@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime/debug"
@@ -49,6 +50,7 @@ var (
 	verbose    bool
 	strict     bool
 	noPrompt   bool
+	noHooks    bool
 )
 
 func main() {
@@ -132,6 +134,11 @@ Examples:
 				Usage:       "disable interactive prompting for missing variables",
 				Destination: &noPrompt,
 			},
+			&cli.BoolFlag{
+				Name:        "no-hooks",
+				Usage:       "skip post-generation hooks defined in .gohatch.toml",
+				Destination: &noHooks,
+			},
 		},
 		Arguments: []cli.Argument{
 			&cli.StringArg{
@@ -193,7 +200,7 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	mergedExtensions, err := loadExtensions()
+	cfg, mergedExtensions, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -221,6 +228,11 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 	}
 
 	if err := removeConfigFile(); err != nil {
+		return err
+	}
+
+	if err := runHooks(ctx, cfg.Hooks, directory, vars); err != nil {
+		_ = os.RemoveAll(directory)
 		return err
 	}
 
@@ -258,10 +270,10 @@ func removeConfigFile() error {
 	return nil
 }
 
-func loadExtensions() ([]string, error) {
+func loadConfig() (*gohatchcfg.Config, []string, error) {
 	cfg, err := gohatchcfg.Load(directory)
 	if err != nil {
-		return nil, fmt.Errorf("loading config: %w", err)
+		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}
 	if gohatchcfg.Exists(directory) {
 		verboseLog("Found %s", gohatchcfg.ConfigFile)
@@ -271,7 +283,7 @@ func loadExtensions() ([]string, error) {
 	if len(merged) > 0 {
 		verboseLog("Extensions: %v", merged)
 	}
-	return merged, nil
+	return cfg, merged, nil
 }
 
 func validateGoMod() error {
@@ -585,6 +597,11 @@ func runDryRun(ctx context.Context, src source.Source) error {
 	printVariables(vars)
 	printUnsetVarWarnings(tmpDir, vars, mergedExt)
 
+	// Hooks
+	if cfgErr == nil {
+		printHooks(cfg.Hooks, vars)
+	}
+
 	// Flags
 	fmt.Println()
 	printFlags()
@@ -709,8 +726,85 @@ func printFlags() {
 	if !keepConfig && gohatchcfg.ConfigFile != "" {
 		fmt.Println("Would remove .gohatch.toml from output.")
 	}
+	if noHooks {
+		fmt.Println("Would skip hooks (--no-hooks).")
+	}
 	if !noGitInit {
 		fmt.Println("Would initialize git repository with initial commit.")
+	}
+}
+
+// substituteHookVars replaces __VarName__ placeholders in a hook command.
+func substituteHookVars(command string, vars map[string]string) string {
+	for key, value := range vars {
+		command = strings.ReplaceAll(command, "__"+key+"__", value)
+	}
+	return command
+}
+
+// confirmHooks asks the user to confirm hook execution.
+// Defined as a variable for test overriding.
+var confirmHooks = func(hooks []gohatchcfg.Hook, vars map[string]string) (bool, error) {
+	fmt.Println("\nPost-generation hooks:")
+	for i, h := range hooks {
+		resolved := substituteHookVars(h.Command, vars)
+		fmt.Printf("  %d. %s: %s\n", i+1, h.Name, resolved)
+	}
+	fmt.Println()
+
+	var confirmed bool
+	form := huh.NewConfirm().Title("Run these hooks?").Value(&confirmed)
+	if err := form.Run(); err != nil {
+		return false, err
+	}
+	return confirmed, nil
+}
+
+// runHooks executes post-generation hooks sequentially.
+func runHooks(ctx context.Context, hooks []gohatchcfg.Hook, dir string, vars map[string]string) error {
+	if len(hooks) == 0 || noHooks {
+		return nil
+	}
+
+	if !isInteractive() {
+		fmt.Println("Warning: skipping hooks (non-interactive terminal)")
+		return nil
+	}
+
+	confirmed, err := confirmHooks(hooks, vars)
+	if err != nil {
+		return fmt.Errorf("confirming hooks: %w", err)
+	}
+	if !confirmed {
+		fmt.Println("Skipping hooks")
+		return nil
+	}
+
+	for _, h := range hooks {
+		resolved := substituteHookVars(h.Command, vars)
+		fmt.Printf("Running hook: %s\n", h.Name)
+		cmd := exec.CommandContext(ctx, "sh", "-c", resolved) //nolint:gosec // hooks are user-confirmed
+		cmd.Dir = dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("hook %q failed: %w", h.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// printHooks shows hook commands in dry-run output.
+func printHooks(hooks []gohatchcfg.Hook, vars map[string]string) {
+	if len(hooks) == 0 {
+		return
+	}
+	fmt.Println()
+	fmt.Println("Hooks:")
+	for i, h := range hooks {
+		resolved := substituteHookVars(h.Command, vars)
+		fmt.Printf("  %d. %s: %s\n", i+1, h.Name, resolved)
 	}
 }
 
