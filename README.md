@@ -34,7 +34,7 @@ brew install oliverandrich/tap/gohatch
 ### Go Install
 
 ```bash
-go install github.com/oliverandrich/gohatch@latest
+go install github.com/oliverandrich/gohatch/cmd/gohatch@latest
 ```
 
 ### Binary Downloads
