@@ -169,7 +169,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Dry-run mode: show what would be done
 	if dryRun {
-		return runDryRun(src)
+		return runDryRun(ctx, src)
 	}
 
 	return executeScaffold(ctx, src)
@@ -434,73 +434,175 @@ func verboseLog(format string, args ...any) {
 	}
 }
 
-func runDryRun(src source.Source) error {
+func runDryRun(ctx context.Context, src source.Source) error {
 	fmt.Println("Dry-run mode: no changes will be made")
 	fmt.Println()
 
+	// Fetch template into temp directory
+	tmpDir, err := os.MkdirTemp("", "gohatch-dry-run-*")
+	if err != nil {
+		return fmt.Errorf("creating temp directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if err := src.Fetch(ctx, tmpDir); err != nil {
+		return fmt.Errorf("fetching template: %w", err)
+	}
+	_ = os.RemoveAll(filepath.Join(tmpDir, ".git"))
+
 	// Show source info
+	printSourceInfo(src)
+	fmt.Printf("Directory: %s\n", directory)
+
+	// Load config and merge extensions
+	cfg, cfgErr := gohatchcfg.Load(tmpDir)
+	mergedExt := extensions
+	if cfgErr == nil {
+		mergedExt = mergeExtensions(extensions, cfg.Extensions)
+	}
+
+	if len(mergedExt) > 0 {
+		fmt.Printf("Extensions: %v\n", mergedExt)
+	}
+
+	// Module rewrite info
+	printModuleInfo(tmpDir)
+
+	// Variables
+	vars := parseVariables(variables, path.Base(directory), module)
+	fmt.Println()
+	printFileTree(tmpDir)
+	printPathRenames(tmpDir, vars)
+	printVariables(vars)
+	printUnsetVarWarnings(tmpDir, vars, mergedExt)
+
+	// Flags
+	fmt.Println()
+	printFlags()
+
+	return nil
+}
+
+func printSourceInfo(src source.Source) {
 	switch s := src.(type) {
 	case *source.GitSource:
-		fmt.Printf("Source:    %s\n", s.URL)
 		if s.Version != "" {
-			fmt.Printf("Version:   %s\n", s.Version)
+			fmt.Printf("Source:     %s (%s)\n", s.URL, s.Version)
+		} else {
+			fmt.Printf("Source:     %s\n", s.URL)
 		}
 	case *source.LocalSource:
-		fmt.Printf("Source:    %s (local)\n", s.Path)
+		fmt.Printf("Source:     %s (local)\n", s.Path)
+	}
+}
+
+func printModuleInfo(tmpDir string) {
+	if !rewrite.HasGoMod(tmpDir) {
+		fmt.Println("Warning:   no go.mod found in template")
+		return
+	}
+	oldModule, err := rewrite.ReadModulePath(tmpDir)
+	if err != nil {
+		return
+	}
+	fmt.Printf("Module:    %s → %s\n", oldModule, module)
+}
+
+func printFileTree(dir string) {
+	fmt.Println("Files:")
+	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == "vendor") {
+			return filepath.SkipDir
+		}
+		rel, _ := filepath.Rel(dir, p)
+		if rel == "." {
+			return nil
+		}
+		if d.IsDir() {
+			fmt.Printf("  %s/\n", rel)
+		} else {
+			fmt.Printf("  %s\n", rel)
+		}
+		return nil
+	})
+}
+
+func printPathRenames(dir string, vars map[string]string) {
+	if len(vars) == 0 {
+		return
 	}
 
-	// Show target info
-	fmt.Printf("Directory: %s\n", directory)
-	fmt.Printf("Module:    %s\n", module)
+	var renames []string
+	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == "vendor") {
+			return filepath.SkipDir
+		}
+		name := d.Name()
+		newName := name
+		for key, value := range vars {
+			placeholder := "__" + key + "__"
+			newName = strings.ReplaceAll(newName, placeholder, value)
+		}
+		if newName != name {
+			rel, _ := filepath.Rel(dir, p)
+			newRel := filepath.Join(filepath.Dir(rel), newName)
+			renames = append(renames, fmt.Sprintf("  %s → %s", rel, newRel))
+		}
+		return nil
+	})
 
-	// Show extensions if any
-	if len(extensions) > 0 {
-		fmt.Printf("CLI Extensions: %v\n", extensions)
+	if len(renames) > 0 {
+		fmt.Println()
+		fmt.Println("Renamed paths:")
+		for _, r := range renames {
+			fmt.Println(r)
+		}
 	}
+}
 
-	// Show variables
-	vars := parseVariables(variables, path.Base(directory), module)
-	fmt.Printf("Variables: %s\n", formatVariables(vars))
-
-	// Show force flag
-	if force {
-		fmt.Println("Force:     --force (skip go.mod validation)")
+func printVariables(vars map[string]string) {
+	if len(vars) == 0 {
+		return
 	}
-
-	// Show strict flag
-	if strict {
-		fmt.Println("Strict:    --strict (unset variables in file contents are errors)")
-	}
-
-	// Show git init status
-	if noGitInit {
-		fmt.Println("Git:       --no-git-init (skip initialization)")
-	}
-
-	// Show keep-config flag
-	if keepConfig {
-		fmt.Println("Config:    --keep-config (keep .gohatch.toml)")
-	}
-
 	fmt.Println()
-	fmt.Println("Would fetch template and rewrite module path in all .go files.")
-	fmt.Println("Would read .gohatch.toml from template (if present) for additional extensions.")
-	if len(extensions) > 0 {
-		fmt.Println("Would also replace module path in files with specified extensions.")
+	fmt.Println("Variables:")
+	for k, v := range vars {
+		fmt.Printf("  %-15s = %s\n", k, v)
 	}
-	fmt.Println("Would replace template variables (__Key__ → Value).")
-	fmt.Println("Unset variables in paths cause an error; in file contents they are removed.")
+}
+
+func printUnsetVarWarnings(tmpDir string, vars map[string]string, exts []string) {
+	unset, err := rewrite.DetectUnsetVars(tmpDir, vars, exts)
+	if err != nil {
+		return
+	}
+	for _, name := range unset.InPaths {
+		fmt.Printf("\nWarning: unset template variable __%s__ in path (must be set with --var %s=Value)\n", name, name)
+	}
+	for _, name := range unset.InContents {
+		fmt.Printf("\nWarning: unset template variable __%s__ will be removed from file contents\n", name)
+	}
+}
+
+func printFlags() {
+	if force {
+		fmt.Println("Would skip go.mod validation (--force).")
+	}
 	if strict {
-		fmt.Println("With --strict, unset variables in file contents also cause an error.")
+		fmt.Println("Would treat unset variables in file contents as errors (--strict).")
 	}
-	if !keepConfig {
-		fmt.Println("Would remove .gohatch.toml from output (use --keep-config to keep).")
+	if !keepConfig && gohatchcfg.ConfigFile != "" {
+		fmt.Println("Would remove .gohatch.toml from output.")
 	}
 	if !noGitInit {
 		fmt.Println("Would initialize git repository with initial commit.")
 	}
-
-	return nil
 }
 
 // validateDirectory checks that the target directory doesn't exist or is empty.

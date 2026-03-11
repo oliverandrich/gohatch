@@ -62,78 +62,90 @@ func captureOutput(f func()) string {
 }
 
 func TestRunDryRun_GitSource(t *testing.T) {
-	// Save and restore global state
-	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
+	oldDir, oldMod, oldExt, oldStrict, oldVars := directory, module, extensions, strict, variables
 	defer func() {
-		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
+		directory, module, extensions, strict, variables = oldDir, oldMod, oldExt, oldStrict, oldVars
 	}()
+
+	// Create a local template to simulate fetching
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/user/template\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "cmd"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "cmd", "main.go"), []byte("package main\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 
-	src := &source.GitSource{
-		URL:     "https://github.com/user/template",
-		Version: "v1.0.0",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
 	assert.Contains(t, output, "Dry-run mode")
-	assert.Contains(t, output, "https://github.com/user/template")
-	assert.Contains(t, output, "v1.0.0")
+	assert.Contains(t, output, srcDir)
 	assert.Contains(t, output, "myapp")
 	assert.Contains(t, output, "github.com/me/myapp")
+	// Should show module rewrite
+	assert.Contains(t, output, "github.com/user/template")
+	// Should show file tree
+	assert.Contains(t, output, "cmd/main.go")
+	assert.Contains(t, output, "go.mod")
 }
 
 func TestRunDryRun_LocalSource(t *testing.T) {
-	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
+	oldDir, oldMod, oldExt, oldStrict, oldVars := directory, module, extensions, strict, variables
 	defer func() {
-		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
+		directory, module, extensions, strict, variables = oldDir, oldMod, oldExt, oldStrict, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/old/tpl\n\ngo 1.21\n"), 0o644))
 
 	directory = "customdir"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 
-	src := &source.LocalSource{
-		Path: "./my-template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
 	assert.Contains(t, output, "Dry-run mode")
-	assert.Contains(t, output, "./my-template (local)")
+	assert.Contains(t, output, srcDir)
 	assert.Contains(t, output, "customdir")
 }
 
 func TestRunDryRun_WithExtensions(t *testing.T) {
-	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
+	oldDir, oldMod, oldExt, oldStrict, oldVars := directory, module, extensions, strict, variables
 	defer func() {
-		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
+		directory, module, extensions, strict, variables = oldDir, oldMod, oldExt, oldStrict, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/old/tpl\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "config.toml"), []byte("key = \"value\"\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = []string{"toml", "yaml"}
+	variables = nil
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
-	assert.Contains(t, output, "CLI Extensions: [toml yaml]")
-	assert.Contains(t, output, "files with specified extensions")
+	assert.Contains(t, output, "Extensions:")
+	assert.Contains(t, output, "toml")
 }
 
 func TestParseVariables_DefaultProjectName(t *testing.T) {
@@ -221,22 +233,24 @@ func TestFormatVariables_Multiple(t *testing.T) {
 }
 
 func TestRunDryRun_WithForce(t *testing.T) {
-	oldDir, oldMod, oldExt, oldForce := directory, module, extensions, force
+	oldDir, oldMod, oldExt, oldForce, oldVars := directory, module, extensions, force, variables
 	defer func() {
-		directory, module, extensions, force = oldDir, oldMod, oldExt, oldForce
+		directory, module, extensions, force, variables = oldDir, oldMod, oldExt, oldForce, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "README.md"), []byte("# test"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	force = true
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
@@ -245,46 +259,49 @@ func TestRunDryRun_WithForce(t *testing.T) {
 }
 
 func TestRunDryRun_WithNoGitInit(t *testing.T) {
-	oldDir, oldMod, oldExt, oldNoGitInit := directory, module, extensions, noGitInit
+	oldDir, oldMod, oldExt, oldNoGitInit, oldVars := directory, module, extensions, noGitInit, variables
 	defer func() {
-		directory, module, extensions, noGitInit = oldDir, oldMod, oldExt, oldNoGitInit
+		directory, module, extensions, noGitInit, variables = oldDir, oldMod, oldExt, oldNoGitInit, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	noGitInit = true
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
-	assert.Contains(t, output, "--no-git-init")
 	assert.NotContains(t, output, "Would initialize git repository")
 }
 
 func TestRunDryRun_DefaultGitInit(t *testing.T) {
-	oldDir, oldMod, oldExt, oldNoGitInit := directory, module, extensions, noGitInit
+	oldDir, oldMod, oldExt, oldNoGitInit, oldVars := directory, module, extensions, noGitInit, variables
 	defer func() {
-		directory, module, extensions, noGitInit = oldDir, oldMod, oldExt, oldNoGitInit
+		directory, module, extensions, noGitInit, variables = oldDir, oldMod, oldExt, oldNoGitInit, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	noGitInit = false
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
@@ -345,51 +362,55 @@ func TestMergeExtensions_Deduplication(t *testing.T) {
 }
 
 func TestRunDryRun_WithKeepConfig(t *testing.T) {
-	oldDir, oldMod, oldExt, oldKeepConfig := directory, module, extensions, keepConfig
+	oldDir, oldMod, oldExt, oldKeepConfig, oldVars := directory, module, extensions, keepConfig, variables
 	defer func() {
-		directory, module, extensions, keepConfig = oldDir, oldMod, oldExt, oldKeepConfig
+		directory, module, extensions, keepConfig, variables = oldDir, oldMod, oldExt, oldKeepConfig, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("extensions = [\"toml\"]\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	keepConfig = true
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
-	assert.Contains(t, output, "--keep-config")
 	assert.NotContains(t, output, "Would remove .gohatch.toml")
 }
 
 func TestRunDryRun_ConfigRemovalMessage(t *testing.T) {
-	oldDir, oldMod, oldExt, oldKeepConfig := directory, module, extensions, keepConfig
+	oldDir, oldMod, oldExt, oldKeepConfig, oldVars := directory, module, extensions, keepConfig, variables
 	defer func() {
-		directory, module, extensions, keepConfig = oldDir, oldMod, oldExt, oldKeepConfig
+		directory, module, extensions, keepConfig, variables = oldDir, oldMod, oldExt, oldKeepConfig, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("extensions = [\"toml\"]\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	keepConfig = false
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
 	assert.Contains(t, output, "Would remove .gohatch.toml")
-	assert.Contains(t, output, "Would read .gohatch.toml")
 }
 
 func TestGetGitAuthor(t *testing.T) {
@@ -714,13 +735,20 @@ func TestExecuteScaffold_DirectoryExists(t *testing.T) {
 }
 
 func TestRun_WithDryRun(t *testing.T) {
-	oldSrcInput, oldMod, oldDir, oldDryRun := srcInput, module, directory, dryRun
-	defer func() { srcInput, module, directory, dryRun = oldSrcInput, oldMod, oldDir, oldDryRun }()
+	oldSrcInput, oldMod, oldDir, oldDryRun, oldVars := srcInput, module, directory, dryRun, variables
+	defer func() {
+		srcInput, module, directory, dryRun, variables = oldSrcInput, oldMod, oldDir, oldDryRun, oldVars
+	}()
 
-	srcInput = "./template"
+	// Create a real template directory
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/tpl/test\n\ngo 1.21\n"), 0o644))
+
+	srcInput = srcDir
 	module = "github.com/me/myapp"
 	directory = ""
 	dryRun = true
+	variables = nil
 
 	output := captureOutput(func() {
 		err := run(t.Context(), nil)
@@ -970,27 +998,28 @@ func TestExecuteScaffold_AllVarsSet(t *testing.T) {
 }
 
 func TestRunDryRun_WithStrict(t *testing.T) {
-	oldDir, oldMod, oldExt, oldStrict := directory, module, extensions, strict
+	oldDir, oldMod, oldExt, oldStrict, oldVars := directory, module, extensions, strict, variables
 	defer func() {
-		directory, module, extensions, strict = oldDir, oldMod, oldExt, oldStrict
+		directory, module, extensions, strict, variables = oldDir, oldMod, oldExt, oldStrict, oldVars
 	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
 
 	directory = "myapp"
 	module = "github.com/me/myapp"
 	extensions = nil
+	variables = nil
 	strict = true
 
-	src := &source.GitSource{
-		URL: "https://github.com/user/template",
-	}
+	src := &source.LocalSource{Path: srcDir}
 
 	output := captureOutput(func() {
-		err := runDryRun(src)
+		err := runDryRun(t.Context(), src)
 		assert.NoError(t, err)
 	})
 
 	assert.Contains(t, output, "--strict")
-	assert.Contains(t, output, "unset variables in file contents also cause an error")
 }
 
 // =============================================================================
@@ -1233,4 +1262,158 @@ func TestExecuteScaffold_MalformedConfig(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "loading config")
 	})
+}
+
+func TestRunDryRun_PathRenamePreview(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars := directory, module, extensions, variables
+	defer func() {
+		directory, module, extensions, variables = oldDir, oldMod, oldExt, oldVars
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/tpl/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "cmd", "__ProjectName__"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "cmd", "__ProjectName__", "main.go"), []byte("package main\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Renamed paths:")
+	assert.Contains(t, output, "__ProjectName__")
+	assert.Contains(t, output, "myapp")
+}
+
+func TestRunDryRun_UnsetVarWarning(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars := directory, module, extensions, variables
+	defer func() {
+		directory, module, extensions, variables = oldDir, oldMod, oldExt, oldVars
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/tpl/test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\nconst author = \"__Author__\"\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Warning")
+	assert.Contains(t, output, "__Author__")
+}
+
+func TestRunDryRun_ModuleRewriteDisplay(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars := directory, module, extensions, variables
+	defer func() {
+		directory, module, extensions, variables = oldDir, oldMod, oldExt, oldVars
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module github.com/old/template\n\ngo 1.21\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Module:")
+	assert.Contains(t, output, "github.com/old/template")
+	assert.Contains(t, output, "github.com/me/myapp")
+}
+
+func TestRunDryRun_NoGoMod(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars, oldForce := directory, module, extensions, variables, force
+	defer func() {
+		directory, module, extensions, variables, force = oldDir, oldMod, oldExt, oldVars, oldForce
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "README.md"), []byte("# test"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+	force = true
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "no go.mod")
+	assert.NotContains(t, output, "Module:")
+}
+
+func TestRunDryRun_WithConfigExtensions(t *testing.T) {
+	oldDir, oldMod, oldExt, oldVars := directory, module, extensions, variables
+	defer func() {
+		directory, module, extensions, variables = oldDir, oldMod, oldExt, oldVars
+	}()
+
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, ".gohatch.toml"), []byte("extensions = [\"toml\", \"justfile\"]\n"), 0o644))
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	extensions = nil
+	variables = nil
+
+	src := &source.LocalSource{Path: srcDir}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Extensions:")
+	assert.Contains(t, output, "toml")
+	assert.Contains(t, output, "justfile")
+}
+
+func TestRunDryRun_FetchError(t *testing.T) {
+	oldDir, oldMod, oldVars := directory, module, variables
+	defer func() {
+		directory, module, variables = oldDir, oldMod, oldVars
+	}()
+
+	directory = "myapp"
+	module = "github.com/me/myapp"
+	variables = nil
+
+	src := &source.GitSource{URL: "file:///nonexistent/repo"}
+
+	output := captureOutput(func() {
+		err := runDryRun(t.Context(), src)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fetching template")
+	})
+
+	_ = output
 }
