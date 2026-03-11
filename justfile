@@ -31,6 +31,21 @@ tidy:
 install:
     go install -ldflags="-s -w -X 'main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)'" ./cmd/gohatch
 
+# Serve documentation locally
+docs:
+    uv run --with zensical zensical serve -a localhost:3000
+
+# Build documentation
+docs-build:
+    ./scripts/generate-licenses.sh
+    cp THIRD_PARTY_LICENSES.md docs/third-party-licenses.md
+    ./scripts/generate-llms-full.sh
+    uv run --with zensical zensical build
+
+# Regenerate THIRD_PARTY_LICENSES.md from go-licenses
+licenses:
+    ./scripts/generate-licenses.sh
+
 # Check that all required dev tools are installed
 setup:
     #!/usr/bin/env bash

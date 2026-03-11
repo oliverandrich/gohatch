@@ -19,6 +19,12 @@ coverage.html
 .beans.yml
 .beans/
 
+# Documentation
+site/
+docs/llms-full.txt
+docs/third-party-licenses.md
+THIRD_PARTY_LICENSES.md
+
 # Claude Code
 CLAUDE.md
 AGENTS.md

@@ -1,0 +1,56 @@
+# gohatch
+
+> gohatch is a project scaffolding tool for Go, inspired by gonew. It clones templates and rewrites module paths, with support for variable substitution, interactive prompting, hooks, and more.
+
+## Usage
+
+```
+gohatch [options] <source> <module> [directory]
+```
+
+- `source`: Template source — GitHub shorthand (`user/repo`), full URL (`github.com/user/repo`), or local path (`./template`). Append `@version` for a specific tag, branch, or commit.
+- `module`: New Go module path (e.g., `github.com/me/myapp`).
+- `directory`: Output directory (optional, defaults to last element of module path).
+
+## Key Features
+
+- [Home](https://gohatch.someonewho.codes/): Installation and quick start
+- [Usage](https://gohatch.someonewho.codes/usage/): Full CLI reference with all 11 flags
+- [Templates](https://gohatch.someonewho.codes/templates/): Variable syntax, prompting, path renaming, binary detection
+- [Creating Templates](https://gohatch.someonewho.codes/creating-templates/): `.gohatch.toml` config, hooks, best practices
+
+## Options
+
+| Flag | Description |
+|------|-------------|
+| `-e, --extension` | Additional file extensions/names for replacement |
+| `-v, --var` | Set template variable (`--var Key=Value`) |
+| `--dry-run` | Preview without changes |
+| `-f, --force` | Skip go.mod validation |
+| `--no-git-init` | Skip git init |
+| `--keep-config` | Keep .gohatch.toml in output |
+| `--verbose` | Detailed progress output |
+| `--strict` | Treat unset variables as errors |
+| `--no-prompt` | Disable interactive prompting |
+| `--no-hooks` | Skip post-generation hooks |
+
+## Template Variables
+
+- Syntax: `__VarName__` (in file contents and path names)
+- Default variables: `ProjectName` (directory name), `GitUser` (from module path)
+- Set with `--var Key=Value`
+- Interactive prompting for unset variables (path vars required, content vars optional)
+- `--strict` mode turns unset content variables into errors
+
+## Template Configuration (.gohatch.toml)
+
+```toml
+version = 1
+extensions = ["toml", "yaml", "justfile"]
+
+[[hooks]]
+name = "tidy modules"
+command = "go mod tidy"
+```
+
+Hooks run after scaffolding with user confirmation. They support variable substitution and have a 5-minute timeout.
