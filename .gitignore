@@ -1,9 +1,11 @@
 # Build output
 /build/
 /dist/
+/gohatch
 
 # Test coverage
 coverage.out
+coverage.html
 *.coverprofile
 
 # OS
