@@ -28,8 +28,7 @@ A project scaffolding tool for Go, inspired by [gonew](https://go.dev/blog/gonew
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew tap oliverandrich/tap https://github.com/oliverandrich/homebrew-tap.git
-brew install gohatch
+brew install oliverandrich/tap/gohatch
 ```
 
 ### Go Install
