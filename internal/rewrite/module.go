@@ -221,6 +221,10 @@ func rewriteTextFile(root *os.Root, relPath, oldModule, newModule string) (bool,
 		return false, fmt.Errorf("reading %s: %w", relPath, err)
 	}
 
+	if isBinary(data) {
+		return false, nil
+	}
+
 	// Simple string replacement
 	newData := bytes.ReplaceAll(data, []byte(oldModule), []byte(newModule))
 

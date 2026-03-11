@@ -67,11 +67,15 @@ func Variables(dir string, vars map[string]string, extraPatterns []string) ([]st
 }
 
 // replaceVariablesInFile replaces __Key__ with Value for all variables.
-// Returns true if the file was modified.
+// Returns true if the file was modified. Skips binary files.
 func replaceVariablesInFile(root *os.Root, relPath string, vars map[string]string) (bool, error) {
 	data, err := readFromRoot(root, relPath)
 	if err != nil {
 		return false, fmt.Errorf("reading %s: %w", relPath, err)
+	}
+
+	if isBinary(data) {
+		return false, nil
 	}
 
 	// Replace each variable

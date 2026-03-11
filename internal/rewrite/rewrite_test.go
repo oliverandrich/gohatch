@@ -690,24 +690,28 @@ func TestMatchesFilePattern(t *testing.T) {
 	patterns := map[string]bool{"yml": true, "yaml": true, "justfile": true, "Makefile": true}
 
 	tests := []struct {
-		name  string
-		input string
-		want  bool
+		patterns map[string]bool
+		name     string
+		input    string
+		want     bool
 	}{
-		{"matches yml extension", "config.yml", true},
-		{"matches yaml extension", "app.yaml", true},
-		{"matches justfile as filename", "justfile", true},
-		{"matches Makefile as filename", "Makefile", true},
-		{"matches yml as filename", "yml", true},
-		{"matches justfile as extension", "foo.justfile", true},
-		{"no match go file", "main.go", false},
-		{"no match random file", "readme.txt", false},
-		{"no match similar name", "justfiles", false},
+		{patterns, "matches yml extension", "config.yml", true},
+		{patterns, "matches yaml extension", "app.yaml", true},
+		{patterns, "matches justfile as filename", "justfile", true},
+		{patterns, "matches Makefile as filename", "Makefile", true},
+		{patterns, "matches yml as filename", "yml", true},
+		{patterns, "matches justfile as extension", "foo.justfile", true},
+		{patterns, "no match go file", "main.go", false},
+		{patterns, "no match random file", "readme.txt", false},
+		{patterns, "no match similar name", "justfiles", false},
+		{map[string]bool{"envrc": true}, "dotfile .envrc matches envrc pattern", ".envrc", true},
+		{map[string]bool{"prettierrc": true}, "dotfile .prettierrc matches", ".prettierrc", true},
+		{map[string]bool{"envrc": true}, "dotfile .bashrc no match", ".bashrc", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := matchesFilePattern(tt.input, patterns)
+			got := matchesFilePattern(tt.input, tt.patterns)
 			if got != tt.want {
 				t.Errorf("matchesFilePattern(%q) = %v, want %v", tt.input, got, tt.want)
 			}
@@ -958,6 +962,37 @@ func TestModuleSkipsGitDir(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(gitDir, "config.toml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "github.com/old/module")
+}
+
+func TestVariablesSkipsBinaryFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a .go file with variables (should be processed)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "main.go"),
+		[]byte("package main\nconst Name = \"__ProjectName__\"\n"),
+		0o644,
+	))
+
+	// Create a binary file with the variable placeholder in its content
+	binaryContent := []byte("HEADER\x00\x00__ProjectName__\x00TRAILER")
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "image.go"),
+		binaryContent,
+		0o644,
+	))
+
+	vars := map[string]string{"ProjectName": "MyApp"}
+	modified, err := Variables(tmpDir, vars, nil)
+	require.NoError(t, err)
+
+	// Only the text file should be modified
+	assert.Equal(t, []string{"main.go"}, modified)
+
+	// Binary file should be untouched
+	data, err := os.ReadFile(filepath.Join(tmpDir, "image.go"))
+	require.NoError(t, err)
+	assert.Equal(t, binaryContent, data)
 }
 
 func TestRenamePaths_SkipsGitDir(t *testing.T) {

@@ -24,8 +24,12 @@ import (
 	"github.com/oliverandrich/gohatch/internal/rewrite"
 	"github.com/oliverandrich/gohatch/internal/source"
 	"github.com/urfave/cli/v3"
+	gomodule "golang.org/x/mod/module"
 	"golang.org/x/term"
 )
+
+// hookTimeout is the maximum duration for a single hook command.
+const hookTimeout = 5 * time.Minute
 
 var version = "dev"
 
@@ -37,7 +41,7 @@ func init() {
 	}
 }
 
-var (
+type options struct {
 	srcInput   string
 	module     string
 	directory  string
@@ -51,7 +55,9 @@ var (
 	strict     bool
 	noPrompt   bool
 	noHooks    bool
-)
+}
+
+var opts options
 
 func main() {
 	// Remove -v alias from version flag to avoid conflict with --var
@@ -90,71 +96,71 @@ Examples:
 				Name:        "extension",
 				Aliases:     []string{"e"},
 				Usage:       "additional file extensions or filenames for replacement (e.g., -e toml -e justfile)",
-				Destination: &extensions,
+				Destination: &opts.extensions,
 			},
 			&cli.StringSliceFlag{
 				Name:        "var",
 				Aliases:     []string{"v"},
 				Usage:       "set template variable (e.g., --var Author=\"Name\")",
-				Destination: &variables,
+				Destination: &opts.variables,
 			},
 			&cli.BoolFlag{
 				Name:        "dry-run",
 				Usage:       "show what would be done without making any changes",
-				Destination: &dryRun,
+				Destination: &opts.dryRun,
 			},
 			&cli.BoolFlag{
 				Name:        "force",
 				Aliases:     []string{"f"},
 				Usage:       "proceed even if template has no go.mod",
-				Destination: &force,
+				Destination: &opts.force,
 			},
 			&cli.BoolFlag{
 				Name:        "no-git-init",
 				Usage:       "skip git repository initialization",
-				Destination: &noGitInit,
+				Destination: &opts.noGitInit,
 			},
 			&cli.BoolFlag{
 				Name:        "keep-config",
 				Usage:       "keep .gohatch.toml config file in output",
-				Destination: &keepConfig,
+				Destination: &opts.keepConfig,
 			},
 			&cli.BoolFlag{
 				Name:        "verbose",
 				Usage:       "show detailed progress output",
-				Destination: &verbose,
+				Destination: &opts.verbose,
 			},
 			&cli.BoolFlag{
 				Name:        "strict",
 				Usage:       "treat unset template variables in file contents as errors",
-				Destination: &strict,
+				Destination: &opts.strict,
 			},
 			&cli.BoolFlag{
 				Name:        "no-prompt",
 				Usage:       "disable interactive prompting for missing variables",
-				Destination: &noPrompt,
+				Destination: &opts.noPrompt,
 			},
 			&cli.BoolFlag{
 				Name:        "no-hooks",
 				Usage:       "skip post-generation hooks defined in .gohatch.toml",
-				Destination: &noHooks,
+				Destination: &opts.noHooks,
 			},
 		},
 		Arguments: []cli.Argument{
 			&cli.StringArg{
 				Name:        "source",
 				UsageText:   "template source (URL, shorthand, or local path)",
-				Destination: &srcInput,
+				Destination: &opts.srcInput,
 			},
 			&cli.StringArg{
 				Name:        "module",
 				UsageText:   "new module path",
-				Destination: &module,
+				Destination: &opts.module,
 			},
 			&cli.StringArg{
 				Name:        "directory",
 				UsageText:   "output directory (optional)",
-				Destination: &directory,
+				Destination: &opts.directory,
 			},
 		},
 		Action: run,
@@ -168,23 +174,28 @@ Examples:
 
 func run(ctx context.Context, cmd *cli.Command) error {
 	// Show help if required arguments are missing
-	if srcInput == "" || module == "" {
+	if opts.srcInput == "" || opts.module == "" {
 		return cli.ShowAppHelp(cmd)
 	}
 
+	// Validate module path
+	if err := gomodule.CheckPath(opts.module); err != nil {
+		return fmt.Errorf("invalid module path %q: %w", opts.module, err)
+	}
+
 	// Default directory to last element of module path
-	if directory == "" {
-		directory = path.Base(module)
+	if opts.directory == "" {
+		opts.directory = path.Base(opts.module)
 	}
 
 	// Parse the source
-	src, err := source.Parse(srcInput)
+	src, err := source.Parse(opts.srcInput)
 	if err != nil {
 		return fmt.Errorf("parsing source: %w", err)
 	}
 
 	// Dry-run mode: show what would be done
-	if dryRun {
+	if opts.dryRun {
 		return runDryRun(ctx, src)
 	}
 
@@ -192,7 +203,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 }
 
 func executeScaffold(ctx context.Context, src source.Source) error {
-	if err := validateDirectory(directory); err != nil {
+	if err := validateDirectory(opts.directory); err != nil {
 		return err
 	}
 
@@ -200,6 +211,24 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
+	// From here on, cleanup directory on error
+	scaffoldErr := scaffold(ctx)
+	if scaffoldErr != nil {
+		_ = os.RemoveAll(opts.directory)
+		return scaffoldErr
+	}
+
+	if !opts.noGitInit {
+		if err := initGitRepo(opts.directory); err != nil {
+			return fmt.Errorf("initializing git repository: %w", err)
+		}
+	}
+
+	fmt.Printf("\nCreated %s\n", opts.directory)
+	return nil
+}
+
+func scaffold(ctx context.Context) error {
 	cfg, mergedExtensions, err := loadConfig()
 	if err != nil {
 		return err
@@ -209,7 +238,7 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	vars := parseVariables(variables, path.Base(directory), module)
+	vars := parseVariables(opts.variables, path.Base(opts.directory), opts.module)
 
 	if err := detectUnsetVars(vars, mergedExtensions); err != nil {
 		return err
@@ -231,29 +260,17 @@ func executeScaffold(ctx context.Context, src source.Source) error {
 		return err
 	}
 
-	if err := runHooks(ctx, cfg.Hooks, directory, vars); err != nil {
-		_ = os.RemoveAll(directory)
-		return err
-	}
-
-	if !noGitInit {
-		if err := initGitRepo(directory); err != nil {
-			return fmt.Errorf("initializing git repository: %w", err)
-		}
-	}
-
-	fmt.Printf("Created %s\n", directory)
-	return nil
+	return runHooks(ctx, cfg.Hooks, opts.directory, vars)
 }
 
 func fetchTemplate(ctx context.Context, src source.Source) error {
-	fmt.Printf("Fetching template from %s...\n", srcInput)
-	if err := src.Fetch(ctx, directory); err != nil {
+	fmt.Printf("Fetching template from %s...\n", opts.srcInput)
+	if err := src.Fetch(ctx, opts.directory); err != nil {
 		return fmt.Errorf("fetching template: %w", err)
 	}
 
 	verboseLog("Removing template .git directory")
-	if err := os.RemoveAll(filepath.Join(directory, ".git")); err != nil {
+	if err := os.RemoveAll(filepath.Join(opts.directory, ".git")); err != nil {
 		return fmt.Errorf("removing template .git: %w", err)
 	}
 
@@ -261,8 +278,8 @@ func fetchTemplate(ctx context.Context, src source.Source) error {
 }
 
 func removeConfigFile() error {
-	if gohatchcfg.Exists(directory) && !keepConfig {
-		if err := gohatchcfg.Remove(directory); err != nil {
+	if gohatchcfg.Exists(opts.directory) && !opts.keepConfig {
+		if err := gohatchcfg.Remove(opts.directory); err != nil {
 			return fmt.Errorf("removing config: %w", err)
 		}
 		verboseLog("Removed %s", gohatchcfg.ConfigFile)
@@ -271,15 +288,15 @@ func removeConfigFile() error {
 }
 
 func loadConfig() (*gohatchcfg.Config, []string, error) {
-	cfg, err := gohatchcfg.Load(directory)
+	cfg, err := gohatchcfg.Load(opts.directory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}
-	if gohatchcfg.Exists(directory) {
+	if gohatchcfg.Exists(opts.directory) {
 		verboseLog("Found %s", gohatchcfg.ConfigFile)
 	}
 
-	merged := mergeExtensions(extensions, cfg.Extensions)
+	merged := mergeExtensions(opts.extensions, cfg.Extensions)
 	if len(merged) > 0 {
 		verboseLog("Extensions: %v", merged)
 	}
@@ -287,12 +304,11 @@ func loadConfig() (*gohatchcfg.Config, []string, error) {
 }
 
 func validateGoMod() error {
-	if rewrite.HasGoMod(directory) {
+	if rewrite.HasGoMod(opts.directory) {
 		return nil
 	}
 
-	if !force {
-		_ = os.RemoveAll(directory)
+	if !opts.force {
 		return fmt.Errorf("template has no go.mod (use --force to proceed anyway)")
 	}
 
@@ -305,13 +321,13 @@ func renamePaths(vars map[string]string) error {
 		return nil
 	}
 
-	renamedPaths, err := rewrite.RenamePaths(directory, vars)
+	renamedPaths, err := rewrite.RenamePaths(opts.directory, vars)
 	if err != nil {
 		return fmt.Errorf("renaming paths: %w", err)
 	}
 
 	if len(renamedPaths) > 0 {
-		fmt.Println("Renaming paths...")
+		fmt.Println("\nRenaming paths...")
 		for _, r := range renamedPaths {
 			verboseLog("Renamed: %s", r)
 		}
@@ -321,22 +337,22 @@ func renamePaths(vars map[string]string) error {
 }
 
 func rewriteModule(exts []string) error {
-	if !rewrite.HasGoMod(directory) {
+	if !rewrite.HasGoMod(opts.directory) {
 		return nil
 	}
 
-	oldModule, err := rewrite.ReadModulePath(directory)
+	oldModule, err := rewrite.ReadModulePath(opts.directory)
 	if err != nil {
 		return fmt.Errorf("reading module path: %w", err)
 	}
 	verboseLog("Found go.mod with module: %s", oldModule)
 
-	if oldModule == module {
+	if oldModule == opts.module {
 		return nil
 	}
 
-	fmt.Printf("Rewriting module %s → %s\n", oldModule, module)
-	modifiedFiles, err := rewrite.Module(directory, module, exts)
+	fmt.Printf("\nRewriting module %s → %s\n", oldModule, opts.module)
+	modifiedFiles, err := rewrite.Module(opts.directory, opts.module, exts)
 	if err != nil {
 		return fmt.Errorf("rewriting module: %w", err)
 	}
@@ -353,8 +369,8 @@ func replaceVariables(vars map[string]string, exts []string) error {
 		return nil
 	}
 
-	fmt.Printf("Replacing variables: %v\n", formatVariables(vars))
-	modifiedFiles, err := rewrite.Variables(directory, vars, exts)
+	fmt.Printf("\nReplacing variables: %v\n", formatVariables(vars))
+	modifiedFiles, err := rewrite.Variables(opts.directory, vars, exts)
 	if err != nil {
 		return fmt.Errorf("replacing variables: %w", err)
 	}
@@ -367,7 +383,7 @@ func replaceVariables(vars map[string]string, exts []string) error {
 }
 
 func detectUnsetVars(vars map[string]string, exts []string) error {
-	unset, err := rewrite.DetectUnsetVars(directory, vars, exts)
+	unset, err := rewrite.DetectUnsetVars(opts.directory, vars, exts)
 	if err != nil {
 		return fmt.Errorf("detecting unset variables: %w", err)
 	}
@@ -377,9 +393,8 @@ func detectUnsetVars(vars map[string]string, exts []string) error {
 	}
 
 	// Prompt interactively if possible
-	if !noPrompt && isInteractive() {
+	if !opts.noPrompt && isInteractive() {
 		if promptErr := promptForVars(unset, vars); promptErr != nil {
-			_ = os.RemoveAll(directory)
 			return fmt.Errorf("prompting for variables: %w", promptErr)
 		}
 		// Re-check after prompting: vars that got values are no longer unset
@@ -388,14 +403,12 @@ func detectUnsetVars(vars map[string]string, exts []string) error {
 
 	// Unset variables in paths are always an error
 	if len(unset.InPaths) > 0 {
-		_ = os.RemoveAll(directory)
 		return fmt.Errorf("unset template variables in paths: %v (set them with --var Key=Value)", unset.InPaths)
 	}
 
 	// Unset variables in contents: error in strict mode, warning otherwise
 	if len(unset.InContents) > 0 {
-		if strict {
-			_ = os.RemoveAll(directory)
+		if opts.strict {
 			return fmt.Errorf("unset template variables in file contents (--strict mode): %v (set them with --var Key=Value)", unset.InContents)
 		}
 		for _, name := range unset.InContents {
@@ -514,23 +527,29 @@ func parseVariables(vars []string, defaultProjectName string, modulePath string)
 	return result
 }
 
-// formatVariables formats variables for display.
+// formatVariables formats variables for display in deterministic order.
 func formatVariables(vars map[string]string) string {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	parts := make([]string, 0, len(vars))
-	for k, v := range vars {
-		parts = append(parts, k+"="+v)
+	for _, k := range keys {
+		parts = append(parts, k+"="+vars[k])
 	}
 	return strings.Join(parts, ", ")
 }
 
 // mergeExtensions combines CLI extensions with config extensions.
 // CLI extensions are added to config extensions (union).
-func mergeExtensions(cli, config []string) []string {
+func mergeExtensions(cliExts, configExts []string) []string {
 	seen := make(map[string]bool)
-	result := make([]string, 0, len(cli)+len(config))
+	result := make([]string, 0, len(cliExts)+len(configExts))
 
 	// Config extensions first
-	for _, ext := range config {
+	for _, ext := range configExts {
 		if !seen[ext] {
 			seen[ext] = true
 			result = append(result, ext)
@@ -538,7 +557,7 @@ func mergeExtensions(cli, config []string) []string {
 	}
 
 	// CLI extensions added (if not already present)
-	for _, ext := range cli {
+	for _, ext := range cliExts {
 		if !seen[ext] {
 			seen[ext] = true
 			result = append(result, ext)
@@ -550,7 +569,7 @@ func mergeExtensions(cli, config []string) []string {
 
 // verboseLog prints a message only if verbose mode is enabled.
 func verboseLog(format string, args ...any) {
-	if verbose {
+	if opts.verbose {
 		fmt.Printf("  "+format+"\n", args...)
 	}
 }
@@ -573,13 +592,13 @@ func runDryRun(ctx context.Context, src source.Source) error {
 
 	// Show source info
 	printSourceInfo(src)
-	fmt.Printf("Directory: %s\n", directory)
+	fmt.Printf("Directory: %s\n", opts.directory)
 
 	// Load config and merge extensions
 	cfg, cfgErr := gohatchcfg.Load(tmpDir)
-	mergedExt := extensions
+	mergedExt := opts.extensions
 	if cfgErr == nil {
-		mergedExt = mergeExtensions(extensions, cfg.Extensions)
+		mergedExt = mergeExtensions(opts.extensions, cfg.Extensions)
 	}
 
 	if len(mergedExt) > 0 {
@@ -590,7 +609,7 @@ func runDryRun(ctx context.Context, src source.Source) error {
 	printModuleInfo(tmpDir)
 
 	// Variables
-	vars := parseVariables(variables, path.Base(directory), module)
+	vars := parseVariables(opts.variables, path.Base(opts.directory), opts.module)
 	fmt.Println()
 	printFileTree(tmpDir)
 	printPathRenames(tmpDir, vars)
@@ -631,7 +650,7 @@ func printModuleInfo(tmpDir string) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("Module:    %s → %s\n", oldModule, module)
+	fmt.Printf("Module:    %s → %s\n", oldModule, opts.module)
 }
 
 func printFileTree(dir string) {
@@ -696,16 +715,24 @@ func printVariables(vars map[string]string) {
 	if len(vars) == 0 {
 		return
 	}
+
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	fmt.Println()
 	fmt.Println("Variables:")
-	for k, v := range vars {
-		fmt.Printf("  %-15s = %s\n", k, v)
+	for _, k := range keys {
+		fmt.Printf("  %-15s = %s\n", k, vars[k])
 	}
 }
 
 func printUnsetVarWarnings(tmpDir string, vars map[string]string, exts []string) {
 	unset, err := rewrite.DetectUnsetVars(tmpDir, vars, exts)
 	if err != nil {
+		fmt.Printf("\nWarning: could not detect unset variables: %v\n", err)
 		return
 	}
 	for _, name := range unset.InPaths {
@@ -717,19 +744,19 @@ func printUnsetVarWarnings(tmpDir string, vars map[string]string, exts []string)
 }
 
 func printFlags() {
-	if force {
+	if opts.force {
 		fmt.Println("Would skip go.mod validation (--force).")
 	}
-	if strict {
+	if opts.strict {
 		fmt.Println("Would treat unset variables in file contents as errors (--strict).")
 	}
-	if !keepConfig && gohatchcfg.ConfigFile != "" {
+	if !opts.keepConfig && gohatchcfg.ConfigFile != "" {
 		fmt.Println("Would remove .gohatch.toml from output.")
 	}
-	if noHooks {
+	if opts.noHooks {
 		fmt.Println("Would skip hooks (--no-hooks).")
 	}
-	if !noGitInit {
+	if !opts.noGitInit {
 		fmt.Println("Would initialize git repository with initial commit.")
 	}
 }
@@ -762,7 +789,7 @@ var confirmHooks = func(hooks []gohatchcfg.Hook, vars map[string]string) (bool, 
 
 // runHooks executes post-generation hooks sequentially.
 func runHooks(ctx context.Context, hooks []gohatchcfg.Hook, dir string, vars map[string]string) error {
-	if len(hooks) == 0 || noHooks {
+	if len(hooks) == 0 || opts.noHooks {
 		return nil
 	}
 
@@ -783,11 +810,14 @@ func runHooks(ctx context.Context, hooks []gohatchcfg.Hook, dir string, vars map
 	for _, h := range hooks {
 		resolved := substituteHookVars(h.Command, vars)
 		fmt.Printf("Running hook: %s\n", h.Name)
-		cmd := exec.CommandContext(ctx, "sh", "-c", resolved) //nolint:gosec // hooks are user-confirmed
+		hookCtx, cancel := context.WithTimeout(ctx, hookTimeout)
+		cmd := exec.CommandContext(hookCtx, "sh", "-c", resolved) //nolint:gosec // hooks are user-confirmed
 		cmd.Dir = dir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		err := cmd.Run()
+		cancel()
+		if err != nil {
 			return fmt.Errorf("hook %q failed: %w", h.Name, err)
 		}
 	}
@@ -862,7 +892,7 @@ func initGitRepo(dir string) error {
 		return fmt.Errorf("creating commit: %w", err)
 	}
 
-	fmt.Println("Initialized git repository with initial commit")
+	fmt.Println("\nInitialized git repository with initial commit")
 	return nil
 }
 
