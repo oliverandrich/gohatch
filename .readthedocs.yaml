@@ -3,7 +3,7 @@ version: 2
 build:
   os: ubuntu-24.04
   tools:
-    golang: "1.26"
+    golang: "latest"
     python: "3.13"
   jobs:
     install:
