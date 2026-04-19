@@ -10,7 +10,9 @@ build:
       - pip install zensical
       - go install github.com/google/go-licenses@latest
     pre_build:
-      - ./scripts/generate-licenses.sh
+      # go install places go-licenses in $GOPATH/bin which is not on PATH
+      # by default on RTD — prefix every script call that needs it.
+      - PATH="$(go env GOPATH)/bin:$PATH" ./scripts/generate-licenses.sh
       - cp THIRD_PARTY_LICENSES.md docs/third-party-licenses.md
       - ./scripts/generate-llms-full.sh
     build:
