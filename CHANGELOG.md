@@ -4,7 +4,7 @@ All notable changes to gohatch are documented here. The format is based on [Keep
 
 Earlier releases (≤ v0.7.1) are only covered by the git history.
 
-## Unreleased
+## 0.8.0 — 2026-04-19
 
 ### Added
 
