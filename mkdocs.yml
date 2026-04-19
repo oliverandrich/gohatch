@@ -1,6 +1,6 @@
 site_name: gohatch
 site_description: A project scaffolding tool for Go, inspired by gonew
-site_url: https://gohatch.someonewho.codes/
+site_url: https://gohatch.readthedocs.io/
 repo_url: https://github.com/oliverandrich/gohatch
 repo_name: oliverandrich/gohatch
 copyright: "&copy; 2025 Oliver Andrich. All rights reserved."

@@ -14,10 +14,10 @@ gohatch [options] <source> <module> [directory]
 
 ## Key Features
 
-- [Home](https://gohatch.someonewho.codes/): Installation and quick start
-- [Usage](https://gohatch.someonewho.codes/usage/): Full CLI reference with all 11 flags
-- [Templates](https://gohatch.someonewho.codes/templates/): Variable syntax, prompting, path renaming, binary detection
-- [Creating Templates](https://gohatch.someonewho.codes/creating-templates/): `.gohatch.toml` config, hooks, best practices
+- [Home](https://gohatch.readthedocs.io/): Installation and quick start
+- [Usage](https://gohatch.readthedocs.io/usage/): Full CLI reference with all 11 flags
+- [Templates](https://gohatch.readthedocs.io/templates/): Variable syntax, prompting, path renaming, binary detection
+- [Creating Templates](https://gohatch.readthedocs.io/creating-templates/): `.gohatch.toml` config, hooks, best practices
 
 ## Options
 

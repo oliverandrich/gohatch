@@ -31,7 +31,7 @@ gohatch user/go-template github.com/me/myapp
 
 ## Documentation
 
-Full documentation is available at [gohatch.someonewho.codes](https://gohatch.someonewho.codes/).
+Full documentation is available at [gohatch.readthedocs.io](https://gohatch.readthedocs.io/).
 
 ## License
 

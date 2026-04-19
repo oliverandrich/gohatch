@@ -1,0 +1,21 @@
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    golang: "1.26"
+    python: "3.13"
+  jobs:
+    install:
+      - pip install zensical
+      - go install github.com/google/go-licenses@latest
+    pre_build:
+      - ./scripts/generate-licenses.sh
+      - cp THIRD_PARTY_LICENSES.md docs/third-party-licenses.md
+      - ./scripts/generate-llms-full.sh
+    build:
+      html:
+        - zensical build
+    post_build:
+      - mkdir -p $READTHEDOCS_OUTPUT/html/
+      - cp --recursive site/* $READTHEDOCS_OUTPUT/html/
