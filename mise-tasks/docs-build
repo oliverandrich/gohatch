@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Build documentation as a static site (regenerates licenses + llms-full.txt first)"
+#MISE depends=["licenses", "llms"]
+set -euo pipefail
+
+cp THIRD_PARTY_LICENSES.md docs/third-party-licenses.md
+uv run --with zensical zensical build

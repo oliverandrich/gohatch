@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Generates llms-full.txt by concatenating all documentation markdown files
-# in a logical order. Output goes to docs/llms-full.txt.
+#MISE description="Regenerate docs/llms-full.txt from the individual doc pages"
+#MISE sources=["docs/index.md", "docs/usage.md", "docs/templates.md", "docs/creating-templates.md"]
+#MISE outputs=["docs/llms-full.txt"]
 set -euo pipefail
 
 DOCS_DIR="docs"
 OUTPUT="$DOCS_DIR/llms-full.txt"
 
-# Files in reading order.
-files=(
+PAGES=(
     index.md
     usage.md
     templates.md
@@ -20,14 +20,16 @@ files=(
     echo "> Complete documentation for gohatch, a project scaffolding tool for Go."
     echo ""
 
-    for file in "${files[@]}"; do
+    for file in "${PAGES[@]}"; do
         path="$DOCS_DIR/$file"
-        if [[ -f "$path" ]]; then
-            echo "---"
-            echo ""
-            cat "$path"
-            echo ""
+        if [[ ! -f $path ]]; then
+            echo "missing page: $path" >&2
+            exit 1
         fi
+        echo "---"
+        echo ""
+        cat "$path"
+        echo ""
     done
 } > "$OUTPUT"
 

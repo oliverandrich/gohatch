@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Serve documentation locally on localhost:3000"
+set -euo pipefail
+
+uv run --with zensical zensical serve -a localhost:3000

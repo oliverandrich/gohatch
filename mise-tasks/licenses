@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#MISE description="Regenerate THIRD_PARTY_LICENSES.md from go-licenses"
+#MISE sources=["go.mod", "go.sum"]
+#MISE outputs=["THIRD_PARTY_LICENSES.md"]
+set -euo pipefail
+
+OUTPUT=THIRD_PARTY_LICENSES.md
+MODULE="github.com/oliverandrich/gohatch"
+
+cat > "$OUTPUT" <<'HEADER'
+# Third-Party Licenses
+
+This file lists all third-party components used by gohatch, including
+Go module dependencies.
+
+This file is auto-generated. Run `mise run licenses` to regenerate it.
+
+## Development Tools
+
+### mise
+
+- **URL:** <https://mise.jdx.dev/>
+- **Copyright:** Copyright (c) Jeff Dickey
+- **License:** MIT — <https://github.com/jdx/mise/blob/main/LICENSE>
+
+### zensical
+
+- **URL:** <https://zensical.org/>
+- **Copyright:** Copyright (c) Zensical contributors
+- **License:** MIT — <https://pypi.org/project/zensical/>
+
+## Go Module Dependencies
+
+Generated with [google/go-licenses](https://github.com/google/go-licenses).
+
+| Module | License | URL |
+|--------|---------|-----|
+HEADER
+
+go-licenses report ./... 2>/dev/null \
+    | sort \
+    | grep -v "^${MODULE}" \
+    | while IFS=',' read -r mod url license; do
+        printf '| %s | %s | [LICENSE](%s) |\n' "$mod" "$license" "$url"
+    done >> "$OUTPUT"
+
+echo "Generated $OUTPUT"
